@@ -1,4 +1,5 @@
 import {
+  Animated,
   Dimensions,
   Pressable,
   StyleSheet,
@@ -11,7 +12,16 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-const { width, height } = Dimensions.get("window");
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+const { width, height } =
+  Dimensions.get("window");
+
+const STORY_DURATION = 5000;
 
 const stories = [
   {
@@ -45,13 +55,93 @@ export default function StoryScreen() {
   const { id } =
     useLocalSearchParams<{ id: string }>();
 
-  const story = stories.find(
-    (item) => item.id === id
+  const initialIndex = stories.findIndex(
+    (story) => story.id === id
   );
 
-  if (!story) {
+  const [currentIndex, setCurrentIndex] =
+    useState(
+      initialIndex >= 0
+        ? initialIndex
+        : 0
+    );
+
+  const [paused, setPaused] =
+    useState(false);
+
+  const progress = useRef(
+    new Animated.Value(0)
+  ).current;
+
+  const currentStory =
+    stories[currentIndex];
+
+  useEffect(() => {
+    progress.setValue(0);
+
+    if (paused) {
+      return;
+    }
+
+    const animation =
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: STORY_DURATION,
+        useNativeDriver: false,
+      });
+
+    animation.start(({ finished }) => {
+      if (finished) {
+        goNext();
+      }
+    });
+
+    return () => {
+      animation.stop();
+    };
+  }, [currentIndex, paused]);
+
+  function goNext() {
+    if (
+      currentIndex <
+      stories.length - 1
+    ) {
+      setCurrentIndex(
+        (index) => index + 1
+      );
+    } else {
+      router.back();
+    }
+  }
+
+  function goPrevious() {
+    if (currentIndex > 0) {
+      setCurrentIndex(
+        (index) => index - 1
+      );
+    } else {
+      progress.setValue(0);
+    }
+  }
+
+  function handlePress(
+    event: any
+  ) {
+    const x =
+      event.nativeEvent.locationX;
+
+    if (x < width / 2) {
+      goPrevious();
+    } else {
+      goNext();
+    }
+  }
+
+  if (!currentStory) {
     return (
-      <View style={styles.errorContainer}>
+      <View
+        style={styles.errorContainer}
+      >
         <Text style={styles.error}>
           Story não encontrado.
         </Text>
@@ -72,30 +162,90 @@ export default function StoryScreen() {
       style={[
         styles.container,
         {
-          backgroundColor: story.color,
+          backgroundColor:
+            currentStory.color,
         },
       ]}
     >
-      {/* PROGRESSO */}
+      {/* PROGRESS BARS */}
 
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBackground}>
-          <View style={styles.progress} />
-        </View>
+      <View
+        style={styles.progressContainer}
+      >
+        {stories.map(
+          (story, index) => {
+            const isCurrent =
+              index === currentIndex;
+
+            const isCompleted =
+              index < currentIndex;
+
+            return (
+              <View
+                key={story.id}
+                style={
+                  styles.progressBackground
+                }
+              >
+                {isCompleted && (
+                  <View
+                    style={[
+                      styles.progress,
+                      {
+                        width: "100%",
+                      },
+                    ]}
+                  />
+                )}
+
+                {isCurrent && (
+                  <Animated.View
+                    style={[
+                      styles.progress,
+                      {
+                        width:
+                          progress.interpolate(
+                            {
+                              inputRange: [
+                                0,
+                                1,
+                              ],
+                              outputRange: [
+                                "0%",
+                                "100%",
+                              ],
+                            }
+                          ),
+                      },
+                    ]}
+                  />
+                )}
+              </View>
+            );
+          }
+        )}
       </View>
 
       {/* HEADER */}
 
       <View style={styles.header}>
         <View style={styles.user}>
-          <View style={styles.smallAvatar}>
-            <Text style={styles.smallAvatarText}>
-              {story.username.charAt(0)}
+          <View
+            style={styles.smallAvatar}
+          >
+            <Text
+              style={
+                styles.smallAvatarText
+              }
+            >
+              {currentStory.username.charAt(
+                0
+              )}
             </Text>
           </View>
 
           <Text style={styles.username}>
-            {story.username}
+            {currentStory.username}
           </Text>
 
           <Text style={styles.time}>
@@ -113,42 +263,53 @@ export default function StoryScreen() {
         </Pressable>
       </View>
 
-      {/* CONTEÚDO */}
-
-      <View style={styles.content}>
-        <Text style={styles.storyTitle}>
-          STORY
-        </Text>
-
-        <Text style={styles.storyUsername}>
-          {story.username}
-        </Text>
-      </View>
-
-      {/* ESQUERDA */}
+      {/* STORY */}
 
       <Pressable
-        style={styles.leftZone}
-        onPress={() => router.back()}
-      />
+        style={styles.storyArea}
+        onPress={handlePress}
+        onPressIn={() =>
+          setPaused(true)
+        }
+        onPressOut={() =>
+          setPaused(false)
+        }
+      >
+        <View style={styles.content}>
+          <Text
+            style={styles.storyTitle}
+          >
+            STORY
+          </Text>
 
-      {/* DIREITA */}
-
-      <Pressable
-        style={styles.rightZone}
-        onPress={() => router.back()}
-      />
+          <Text
+            style={
+              styles.storyUsername
+            }
+          >
+            {currentStory.username}
+          </Text>
+        </View>
+      </Pressable>
 
       {/* BOTTOM */}
 
       <View style={styles.bottom}>
-        <Text style={styles.reply}>
-          Enviar mensagem...
-        </Text>
+        <View style={styles.reply}>
+          <Text
+            style={styles.replyText}
+          >
+            Enviar mensagem...
+          </Text>
+        </View>
 
-        <Text style={styles.like}>
-          ♡
-        </Text>
+        <Pressable
+          style={styles.likeButton}
+        >
+          <Text style={styles.like}>
+            ♡
+          </Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -182,12 +343,15 @@ const styles = StyleSheet.create({
   progressContainer: {
     position: "absolute",
     top: 12,
-    left: 10,
-    right: 10,
+    left: 8,
+    right: 8,
     zIndex: 20,
+    flexDirection: "row",
+    gap: 4,
   },
 
   progressBackground: {
+    flex: 1,
     height: 4,
     borderRadius: 10,
     overflow: "hidden",
@@ -196,7 +360,6 @@ const styles = StyleSheet.create({
   },
 
   progress: {
-    width: "45%",
     height: "100%",
     backgroundColor: "#fff",
   },
@@ -207,6 +370,7 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     zIndex: 20,
+
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -221,7 +385,8 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.3)",
+    backgroundColor:
+      "rgba(255,255,255,0.3)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -238,7 +403,8 @@ const styles = StyleSheet.create({
   },
 
   time: {
-    color: "rgba(255,255,255,0.75)",
+    color:
+      "rgba(255,255,255,0.75)",
     marginLeft: 7,
     fontSize: 12,
   },
@@ -247,6 +413,10 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 38,
     fontWeight: "300",
+  },
+
+  storyArea: {
+    flex: 1,
   },
 
   content: {
@@ -268,28 +438,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 
-  leftZone: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: width * 0.35,
-  },
-
-  rightZone: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: width * 0.65,
-  },
-
   bottom: {
     position: "absolute",
     left: 16,
     right: 16,
     bottom: 35,
     zIndex: 20,
+
     flexDirection: "row",
     alignItems: "center",
   },
@@ -301,15 +456,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor:
       "rgba(255,255,255,0.7)",
-    color: "#fff",
+    justifyContent: "center",
     paddingHorizontal: 18,
-    paddingTop: 12,
-    overflow: "hidden",
+  },
+
+  replyText: {
+    color: "#fff",
+  },
+
+  likeButton: {
+    width: 50,
+    alignItems: "center",
   },
 
   like: {
     color: "#fff",
     fontSize: 32,
-    marginLeft: 15,
   },
 });
