@@ -3,12 +3,23 @@
  * https://docs.expo.dev/guides/color-schemes/
  */
 
-import { Colors } from '@/constants/theme';
+import { Colors, Tokens, type ThemeName } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-export function useTheme() {
-  const scheme = useColorScheme();
-  const theme = scheme === 'unspecified' ? 'light' : scheme;
+function resolveThemeName(scheme: string | null | undefined): ThemeName {
+  return scheme === 'dark' ? 'dark' : 'light';
+}
 
-  return Colors[theme];
+export function useThemeName(): ThemeName {
+  return resolveThemeName(useColorScheme());
+}
+
+/** Flat starter palette — keep for ThemedText / ThemedView. */
+export function useTheme() {
+  return Colors[useThemeName()];
+}
+
+/** Nested TYS Design System tokens (Phase 0). */
+export function useThemeTokens() {
+  return Tokens[useThemeName()];
 }
