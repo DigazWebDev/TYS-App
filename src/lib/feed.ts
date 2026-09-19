@@ -4,6 +4,7 @@
  * stories, story_views. Missing relations still degrade to an empty feed.
  */
 
+import { fetchLikesForPosts } from '@/lib/post-likes';
 import { supabase } from '@/lib/supabase';
 import type { FeedSnapshot, Post, ProfilePreview, StoryPreview } from '@/types/post';
 
@@ -51,7 +52,6 @@ export async function fetchFeed(userId: string | undefined): Promise<FeedSnapsho
         display_name,
         avatar_url
       ),
-      likes:post_likes (user_id),
       comments:post_comments (id)
     `
     )
@@ -95,9 +95,11 @@ export async function fetchFeed(userId: string | undefined): Promise<FeedSnapsho
     throw new Error(storiesResult.error.message);
   }
 
-  const posts: Post[] = (postsResult.data ?? []).map((row) => {
+  const postRows = postsResult.data ?? [];
+  const likes = await fetchLikesForPosts(postRows.map((row) => row.id));
+
+  const posts: Post[] = postRows.map((row) => {
     const authorRow = Array.isArray(row.author) ? row.author[0] : row.author;
-    const likes = Array.isArray(row.likes) ? row.likes : [];
     const comments = Array.isArray(row.comments) ? row.comments : [];
 
     return {
@@ -108,11 +110,9 @@ export async function fetchFeed(userId: string | undefined): Promise<FeedSnapsho
       body: row.body ?? '',
       imageUrl: row.image_url ?? null,
       createdAt: row.created_at,
-      likeCount: likes.length,
+      likeCount: likes.likeCountByPostId[row.id] ?? 0,
       commentCount: comments.length,
-      likedByMe: userId
-        ? likes.some((like: { user_id: string }) => like.user_id === userId)
-        : false,
+      likedByMe: likes.likedPostIds.has(row.id),
     };
   });
 

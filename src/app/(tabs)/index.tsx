@@ -43,15 +43,15 @@ export default function FeedScreen() {
 
     return (
       <EmptyState
-        title="O teu feed está pronto"
+        title="Ainda não há histórias"
         description={
           feed.schemaReady
-            ? 'Quando seguires pessoas, as publicações delas aparecem aqui.'
-            : 'Ainda não há publicações na TYS. Cria a primeira story enquanto o feed de posts fica ligado à base de dados.'
+            ? 'O feed está ligado. Publica a primeira história na TYS.'
+            : 'Ainda não há publicações na TYS. Cria a primeira enquanto o feed fica ligado à base de dados.'
         }
         action={
-          <Button onPress={() => router.push('/create-story')}>
-            Criar story
+          <Button onPress={() => router.push('/(tabs)/create')}>
+            Criar publicação
           </Button>
         }
       />
@@ -88,7 +88,11 @@ export default function FeedScreen() {
         data={feed.posts}
         keyExtractor={(item) => item.id}
         renderItem={({ item }: { item: Post }) => (
-          <PostCard post={item} onLike={feed.toggleLike} />
+          <PostCard
+            post={item}
+            liking={feed.likingPostIds.has(item.id)}
+            onLike={feed.toggleLike}
+          />
         )}
         ListHeaderComponent={
           <StoryRail stories={feed.stories} currentUser={currentUser} />

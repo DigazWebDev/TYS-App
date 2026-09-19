@@ -10,10 +10,11 @@ import type { Post } from '@/types/post';
 
 type PostCardProps = {
   post: Post;
+  liking?: boolean;
   onLike: (postId: string) => void;
 };
 
-export function PostCard({ post, onLike }: PostCardProps) {
+export function PostCard({ post, liking = false, onLike }: PostCardProps) {
   const tokens = useThemeTokens();
   const displayName = post.author.displayName ?? post.author.username;
 
@@ -75,10 +76,15 @@ export function PostCard({ post, onLike }: PostCardProps) {
       <View style={styles.actions}>
         <Pressable
           onPress={() => onLike(post.id)}
+          disabled={liking}
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel={post.likedByMe ? 'Remover gosto' : 'Gostar'}
-          style={styles.action}
+          accessibilityState={{ busy: liking, selected: post.likedByMe }}
+          style={({ pressed }) => [
+            styles.action,
+            (pressed || liking) && styles.actionPressed,
+          ]}
         >
           <SymbolView
             name={post.likedByMe ? heartFillIcon : heartIcon}
@@ -196,9 +202,13 @@ const styles = StyleSheet.create({
     marginTop: Spacing.three,
   },
   action: {
+    minWidth: 44,
     minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.one,
+  },
+  actionPressed: {
+    opacity: 0.72,
   },
 });

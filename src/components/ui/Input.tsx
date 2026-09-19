@@ -30,6 +30,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
     onFocus,
     onBlur,
     placeholderTextColor,
+    multiline = false,
     ...rest
   },
   ref
@@ -47,6 +48,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
     <View
       style={[
         styles.container,
+        multiline ? styles.multilineContainer : styles.singleLine,
         {
           backgroundColor: tokens.background.surface,
           borderColor,
@@ -57,6 +59,8 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
       {left ? <View style={styles.adornmentStart}>{left}</View> : null}
       <TextInput
         ref={ref}
+        multiline={multiline}
+        textAlignVertical={multiline ? 'top' : 'center'}
         placeholderTextColor={placeholderTextColor ?? tokens.text.secondary}
         selectionColor={tokens.accent.teal.default}
         onFocus={(event) => {
@@ -84,12 +88,20 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
 
 const styles = StyleSheet.create({
   container: {
-    height: 52,
     borderWidth: 1,
     borderRadius: Radius.xl,
     paddingHorizontal: Spacing.three,
     flexDirection: 'row',
+    overflow: 'hidden',
+  },
+  singleLine: {
+    height: 52,
     alignItems: 'center',
+  },
+  multilineContainer: {
+    minHeight: 180,
+    alignItems: 'flex-start',
+    paddingVertical: Spacing.three,
   },
   field: {
     flex: 1,

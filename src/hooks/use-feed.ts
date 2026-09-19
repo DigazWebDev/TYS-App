@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { Alert } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 
 import { fetchFeed } from '@/lib/feed';
+import { likePost, unlikePost } from '@/lib/post-likes';
 import { useAuthSession } from '@/hooks/use-auth-session';
 import type { FeedSnapshot, Post } from '@/types/post';
 
@@ -17,6 +20,13 @@ export function useFeed() {
   const [status, setStatus] = useState<FeedStatus>('loading');
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [likingPostIds, setLikingPostIds] = useState<ReadonlySet<string>>(
+    () => new Set()
+  );
+  const hasLoadedRef = useRef(false);
+  const snapshotRef = useRef(snapshot);
+  const inFlightLikes = useRef(new Set<string>());
+  snapshotRef.current = snapshot;
 
   const load = useCallback(
     async (mode: 'initial' | 'refresh' = 'initial') => {
@@ -28,9 +38,10 @@ export function useFeed() {
 
       try {
         const next = await fetchFeed(userId);
-        setSnapshot(next);
+        setSnapshot((current) => mergeInFlightLikes(current, next, inFlightLikes.current));
         setError(null);
         setStatus('ready');
+        hasLoadedRef.current = true;
       } catch (caught) {
         setError(
           caught instanceof Error
@@ -45,17 +56,69 @@ export function useFeed() {
     [userId]
   );
 
-  useEffect(() => {
-    void load('initial');
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      void load(hasLoadedRef.current ? 'refresh' : 'initial');
+    }, [load])
+  );
 
-  const toggleLike = useCallback((postId: string) => {
+  const toggleLike = useCallback(async (postId: string) => {
+    if (inFlightLikes.current.has(postId)) {
+      return;
+    }
+
+    const currentPost = snapshotRef.current.posts.find(
+      (post) => post.id === postId
+    );
+
+    if (!currentPost) {
+      return;
+    }
+
+    inFlightLikes.current.add(postId);
+    setLikingPostIds((current) => new Set(current).add(postId));
     setSnapshot((current) => ({
       ...current,
       posts: current.posts.map((post) =>
         post.id === postId ? withToggledLike(post) : post
       ),
     }));
+
+    try {
+      const result = currentPost.likedByMe
+        ? await unlikePost(postId)
+        : await likePost(postId);
+
+      if (result.error) {
+        setSnapshot((current) => ({
+          ...current,
+          posts: current.posts.map((post) =>
+            post.id === postId ? currentPost : post
+          ),
+        }));
+        Alert.alert('Não foi possível atualizar o gosto', result.error);
+      }
+    } catch (caught) {
+      setSnapshot((current) => ({
+        ...current,
+        posts: current.posts.map((post) =>
+          post.id === postId ? currentPost : post
+        ),
+      }));
+      Alert.alert(
+        'Não foi possível atualizar o gosto',
+        caught instanceof Error
+          ? caught.message
+          : 'Tenta novamente dentro de momentos.'
+      );
+    } finally {
+      inFlightLikes.current.delete(postId);
+      setLikingPostIds((current) => {
+        const next = new Set(current);
+        next.delete(postId);
+        return next;
+      });
+    }
   }, []);
 
   return {
@@ -63,6 +126,7 @@ export function useFeed() {
     status,
     error,
     refreshing,
+    likingPostIds,
     refresh: () => load('refresh'),
     retry: () => load('initial'),
     toggleLike,
@@ -76,5 +140,26 @@ function withToggledLike(post: Post): Post {
     ...post,
     likedByMe,
     likeCount: Math.max(0, post.likeCount + (likedByMe ? 1 : -1)),
+  };
+}
+
+function mergeInFlightLikes(
+  current: FeedSnapshot,
+  next: FeedSnapshot,
+  inFlight: Set<string>
+): FeedSnapshot {
+  if (inFlight.size === 0) {
+    return next;
+  }
+
+  return {
+    ...next,
+    posts: next.posts.map((post) => {
+      if (!inFlight.has(post.id)) {
+        return post;
+      }
+
+      return current.posts.find((local) => local.id === post.id) ?? post;
+    }),
   };
 }
