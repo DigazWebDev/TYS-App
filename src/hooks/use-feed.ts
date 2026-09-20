@@ -1,9 +1,11 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
 import { fetchFeed } from '@/lib/feed';
+import { subscribeCommentCount } from '@/lib/post-comments';
 import { likePost, unlikePost } from '@/lib/post-likes';
+import { deletePost, subscribePostCreated, subscribePostDeleted } from '@/lib/posts';
 import { useAuthSession } from '@/hooks/use-auth-session';
 import type { FeedSnapshot, Post } from '@/types/post';
 
@@ -23,9 +25,13 @@ export function useFeed() {
   const [likingPostIds, setLikingPostIds] = useState<ReadonlySet<string>>(
     () => new Set()
   );
+  const [deletingPostIds, setDeletingPostIds] = useState<ReadonlySet<string>>(
+    () => new Set()
+  );
   const hasLoadedRef = useRef(false);
   const snapshotRef = useRef(snapshot);
   const inFlightLikes = useRef(new Set<string>());
+  const inFlightDeletes = useRef(new Set<string>());
   snapshotRef.current = snapshot;
 
   const load = useCallback(
@@ -61,6 +67,37 @@ export function useFeed() {
       void load(hasLoadedRef.current ? 'refresh' : 'initial');
     }, [load])
   );
+
+  useEffect(() => {
+    const unsubscribeCounts = subscribeCommentCount((postId, delta) => {
+      setSnapshot((current) => ({
+        ...current,
+        posts: current.posts.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                commentCount: Math.max(0, post.commentCount + delta),
+              }
+            : post
+        ),
+      }));
+    });
+    const unsubscribeDeleted = subscribePostDeleted((postId) => {
+      setSnapshot((current) => ({
+        ...current,
+        posts: current.posts.filter((post) => post.id !== postId),
+      }));
+    });
+    const unsubscribeCreated = subscribePostCreated(() => {
+      void load('refresh');
+    });
+
+    return () => {
+      unsubscribeCounts();
+      unsubscribeDeleted();
+      unsubscribeCreated();
+    };
+  }, [load]);
 
   const toggleLike = useCallback(async (postId: string) => {
     if (inFlightLikes.current.has(postId)) {
@@ -121,15 +158,68 @@ export function useFeed() {
     }
   }, []);
 
+  const removePost = useCallback(async (postId: string) => {
+    if (inFlightDeletes.current.has(postId)) {
+      return;
+    }
+
+    const currentPost = snapshotRef.current.posts.find(
+      (post) => post.id === postId
+    );
+
+    if (!currentPost) {
+      return;
+    }
+
+    inFlightDeletes.current.add(postId);
+    setDeletingPostIds((current) => new Set(current).add(postId));
+    setSnapshot((current) => ({
+      ...current,
+      posts: current.posts.filter((post) => post.id !== postId),
+    }));
+
+    try {
+      const result = await deletePost(postId);
+
+      if (result.error) {
+        setSnapshot((current) => ({
+          ...current,
+          posts: [currentPost, ...current.posts.filter((post) => post.id !== postId)],
+        }));
+        Alert.alert('Não foi possível apagar', result.error);
+      }
+    } catch (caught) {
+      setSnapshot((current) => ({
+        ...current,
+        posts: [currentPost, ...current.posts.filter((post) => post.id !== postId)],
+      }));
+      Alert.alert(
+        'Não foi possível apagar',
+        caught instanceof Error
+          ? caught.message
+          : 'Tenta novamente dentro de momentos.'
+      );
+    } finally {
+      inFlightDeletes.current.delete(postId);
+      setDeletingPostIds((current) => {
+        const next = new Set(current);
+        next.delete(postId);
+        return next;
+      });
+    }
+  }, []);
+
   return {
     ...snapshot,
     status,
     error,
     refreshing,
     likingPostIds,
+    deletingPostIds,
     refresh: () => load('refresh'),
     retry: () => load('initial'),
     toggleLike,
+    removePost,
     currentUser: session?.user ?? null,
   };
 }

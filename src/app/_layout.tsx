@@ -27,6 +27,18 @@ export default function RootLayout() {
         <Stack.Screen name="create-story" />
         <Stack.Screen name="explore" />
         <Stack.Screen
+          name="user/[id]"
+          options={{
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="post/[id]"
+          options={{
+            presentation: 'modal',
+          }}
+        />
+        <Stack.Screen
           name="story/[id]"
           options={{
             presentation: 'fullScreenModal',

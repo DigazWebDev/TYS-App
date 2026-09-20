@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar, Button, Header, Input, Screen, Text } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
@@ -19,6 +20,7 @@ import {
 } from '@/lib/posts';
 
 export default function CreateScreen() {
+  const insets = useSafeAreaInsets();
   const { session } = useAuthSession();
   const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -53,27 +55,29 @@ export default function CreateScreen() {
     setLoading(true);
     Keyboard.dismiss();
 
-    const result = await createPost(body);
+    try {
+      const result = await createPost(body);
 
-    submitting.current = false;
-    setLoading(false);
+      if (result.error) {
+        setError(result.error);
+        Alert.alert('Não foi possível publicar', result.error);
+        return;
+      }
 
-    if (result.error) {
-      setError(result.error);
-      Alert.alert('Não foi possível publicar', result.error);
-      return;
-    }
-
-    setBody('');
-    setError(null);
-    Alert.alert('Publicado', 'A tua história já está no feed.', [
-      {
-        text: 'Ver feed',
-        onPress: () => {
-          router.navigate('/(tabs)');
+      setBody('');
+      setError(null);
+      Alert.alert('Publicado', 'A tua história já está no feed.', [
+        {
+          text: 'Ver feed',
+          onPress: () => {
+            router.navigate('/(tabs)');
+          },
         },
-      },
-    ]);
+      ]);
+    } finally {
+      submitting.current = false;
+      setLoading(false);
+    }
   }
 
   return (
@@ -84,7 +88,12 @@ export default function CreateScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.body}>
+        <View
+          style={[
+            styles.body,
+            { paddingBottom: Math.max(insets.bottom, Spacing.four) },
+          ]}
+        >
           <Text variant="overline" tone="secondary">
             CONTA A TUA HISTÓRIA
           </Text>
@@ -157,7 +166,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing.five,
     paddingTop: Spacing.two,
-    paddingBottom: Spacing.four,
+    paddingBottom: 0,
   },
   identity: {
     flexDirection: 'row',

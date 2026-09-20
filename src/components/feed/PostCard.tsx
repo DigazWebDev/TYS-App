@@ -1,5 +1,6 @@
 import { Alert, Pressable, Share, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
+import { type Href, router } from 'expo-router';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 
 import { Avatar, Text } from '@/components/ui';
@@ -10,13 +11,26 @@ import type { Post } from '@/types/post';
 
 type PostCardProps = {
   post: Post;
+  currentUserId?: string;
   liking?: boolean;
+  deleting?: boolean;
   onLike: (postId: string) => void;
+  onDelete?: (postId: string) => void;
+  onOpenProfile?: (userId: string) => void;
 };
 
-export function PostCard({ post, liking = false, onLike }: PostCardProps) {
+export function PostCard({
+  post,
+  currentUserId,
+  liking = false,
+  deleting = false,
+  onLike,
+  onDelete,
+  onOpenProfile,
+}: PostCardProps) {
   const tokens = useThemeTokens();
   const displayName = post.author.displayName ?? post.author.username;
+  const isOwn = Boolean(currentUserId && currentUserId === post.author.id);
 
   async function handleShare() {
     await Share.share({
@@ -25,37 +39,64 @@ export function PostCard({ post, liking = false, onLike }: PostCardProps) {
   }
 
   function handleMore() {
-    Alert.alert(displayName, undefined, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Denunciar', style: 'destructive' },
-    ]);
+    if (!isOwn || !onDelete) {
+      return;
+    }
+
+    Alert.alert(
+      'Apagar publicação',
+      'Esta história desaparece do feed e do teu perfil.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Apagar',
+          style: 'destructive',
+          onPress: () => onDelete(post.id),
+        },
+      ]
+    );
   }
 
   return (
     <View style={styles.card}>
       <View style={styles.top}>
         <Avatar name={displayName} uri={post.author.avatarUrl} size="sm" />
-        <View style={styles.identity}>
+        <Pressable
+          onPress={() => onOpenProfile?.(post.author.id)}
+          disabled={!onOpenProfile}
+          accessibilityRole={onOpenProfile ? 'button' : undefined}
+          accessibilityLabel={
+            onOpenProfile ? `Abrir perfil de ${displayName}` : undefined
+          }
+          style={styles.identity}
+        >
           <Text variant="meta" style={styles.username}>
             {displayName}
           </Text>
           <Text variant="caption" tone="secondary">
             @{post.author.username} · {formatRelativeTime(post.createdAt)}
           </Text>
-        </View>
-        <Pressable
-          onPress={handleMore}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel="Mais opções"
-          style={styles.iconHit}
-        >
+        </Pressable>
+        {isOwn && onDelete ? (
+          <Pressable
+            onPress={handleMore}
+            disabled={deleting}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Mais opções"
+            accessibilityState={{ busy: deleting, disabled: deleting }}
+            style={({ pressed }) => [
+              styles.iconHit,
+              (pressed || deleting) && styles.actionPressed,
+            ]}
+          >
           <SymbolView
             name={moreIcon}
             size={18}
             tintColor={tokens.text.secondary}
           />
         </Pressable>
+        ) : null}
       </View>
 
       {post.body ? (
@@ -102,13 +143,18 @@ export function PostCard({ post, liking = false, onLike }: PostCardProps) {
         </Pressable>
 
         <Pressable
-          onPress={() =>
-            Alert.alert('Comentários', 'Os comentários chegam na próxima etapa.')
-          }
+          onPress={() => router.push(`/post/${post.id}` as Href)}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Comentários"
-          style={styles.action}
+          accessibilityLabel={
+            post.commentCount === 1
+              ? '1 comentário'
+              : `${post.commentCount} comentários`
+          }
+          style={({ pressed }) => [
+            styles.action,
+            pressed && styles.actionPressed,
+          ]}
         >
           <SymbolView
             name={commentIcon}

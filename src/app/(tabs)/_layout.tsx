@@ -30,7 +30,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Feed',
+          title: 'Início',
           tabBarIcon: ({ color, focused }) => (
             <TabIcon
               name={
@@ -44,19 +44,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="create"
-        options={{
-          title: 'Criar',
-          tabBarIcon: ({ color }) => (
-            <TabIcon
-              name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="inbox"
+        name="messages"
         options={{
           title: 'Mensagens',
           tabBarIcon: ({ color, focused }) => (
@@ -64,16 +52,32 @@ export default function TabsLayout() {
               name={
                 focused
                   ? {
-                      ios: 'bubble.left.and.bubble.right.fill',
-                      android: 'chat',
-                      web: 'chat',
+                      ios: 'bubble.left.fill',
+                      android: 'chat_bubble',
+                      web: 'chat_bubble',
                     }
                   : {
-                      ios: 'bubble.left.and.bubble.right',
+                      ios: 'bubble.left',
                       android: 'chat_bubble_outline',
                       web: 'chat_bubble_outline',
                     }
               }
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="search"
+        options={{
+          title: 'Pesquisa',
+          tabBarIcon: ({ color }) => (
+            <TabIcon
+              name={{
+                ios: 'magnifyingglass',
+                android: 'search',
+                web: 'search',
+              }}
               color={color}
             />
           ),
@@ -93,6 +97,20 @@ export default function TabsLayout() {
               color={color}
             />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="create"
+        options={{
+          href: null,
+          title: 'Criar',
+        }}
+      />
+      <Tabs.Screen
+        name="inbox"
+        options={{
+          href: null,
+          title: 'Inbox',
         }}
       />
     </Tabs>

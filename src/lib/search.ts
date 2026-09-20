@@ -1,0 +1,84 @@
+import { supabase } from '@/lib/supabase';
+import { profileFromRow } from '@/lib/feed';
+import type { Post, ProfilePreview } from '@/types/post';
+
+const SEARCH_LIMIT = 20;
+
+export type SearchResults = {
+  profiles: ProfilePreview[];
+  posts: Post[];
+};
+
+function escapeIlike(value: string) {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/%/g, '\\%')
+    .replace(/_/g, '\\_')
+    .replace(/"/g, '')
+    .replace(/[,()]/g, ' ');
+}
+
+export async function searchPublicContent(rawQuery: string): Promise<SearchResults> {
+  const query = rawQuery.trim();
+
+  if (query.length < 2) {
+    return { profiles: [], posts: [] };
+  }
+
+  const pattern = `%${escapeIlike(query)}%`;
+
+  const [profilesResult, postsResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url')
+      .or(`username.ilike."${pattern}",display_name.ilike."${pattern}"`)
+      .limit(SEARCH_LIMIT),
+    supabase
+      .from('posts')
+      .select(
+        `
+        id,
+        body,
+        image_url,
+        created_at,
+        author:profiles!author_id (
+          id,
+          username,
+          display_name,
+          avatar_url
+        )
+      `
+      )
+      .ilike('body', pattern)
+      .order('created_at', { ascending: false })
+      .limit(SEARCH_LIMIT),
+  ]);
+
+  if (profilesResult.error) {
+    throw new Error(profilesResult.error.message);
+  }
+
+  if (postsResult.error) {
+    throw new Error(postsResult.error.message);
+  }
+
+  const profiles = (profilesResult.data ?? []).map(profileFromRow);
+  const posts: Post[] = (postsResult.data ?? []).map((row) => {
+    const authorRow = Array.isArray(row.author) ? row.author[0] : row.author;
+
+    return {
+      id: row.id,
+      author: profileFromRow(
+        authorRow ?? { id: 'unknown', username: 'utilizador' }
+      ),
+      body: row.body ?? '',
+      imageUrl: row.image_url ?? null,
+      createdAt: row.created_at,
+      likeCount: 0,
+      commentCount: 0,
+      likedByMe: false,
+    };
+  });
+
+  return { profiles, posts };
+}

@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import {
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -56,7 +59,14 @@ export default function RegisterScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.container}
+      >
       <Text style={styles.logo}>TYS</Text>
 
       <Text style={styles.title}>Criar conta</Text>
@@ -96,13 +106,18 @@ export default function RegisterScreen() {
           Já tens conta? Entrar
         </Text>
       </TouchableOpacity>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
+  flex: {
     flex: 1,
+    backgroundColor: '#fff',
+  },
+  container: {
+    flexGrow: 1,
     justifyContent: 'center',
     padding: 24,
     backgroundColor: '#fff',

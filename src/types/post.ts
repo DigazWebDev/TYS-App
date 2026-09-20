@@ -16,6 +16,15 @@ export type Post = {
   likedByMe: boolean;
 };
 
+export type PostComment = {
+  id: string;
+  postId: string;
+  authorId: string;
+  body: string;
+  createdAt: string;
+  author: ProfilePreview;
+};
+
 export type StoryPreview = {
   id: string;
   author: ProfilePreview;

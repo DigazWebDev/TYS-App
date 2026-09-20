@@ -1,20 +1,18 @@
 import {
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 
 import { FeedSkeleton } from '@/components/feed/FeedSkeleton';
 import { PostCard } from '@/components/feed/PostCard';
 import { StoryRail } from '@/components/feed/StoryRail';
-import { Button, EmptyState, Header, Screen } from '@/components/ui';
+import { Button, EmptyState, Header, Screen, Text } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useFeed } from '@/hooks/use-feed';
 import { useThemeTokens } from '@/hooks/use-theme';
+import { openCreatePost, openProfile } from '@/lib/navigation';
 import type { Post, ProfilePreview } from '@/types/post';
 
 export default function FeedScreen() {
@@ -44,15 +42,9 @@ export default function FeedScreen() {
     return (
       <EmptyState
         title="Ainda não há histórias"
-        description={
-          feed.schemaReady
-            ? 'O feed está ligado. Publica a primeira história na TYS.'
-            : 'Ainda não há publicações na TYS. Cria a primeira enquanto o feed fica ligado à base de dados.'
-        }
+        description="O feed está ligado. Conta a tua e ela aparece aqui para toda a gente."
         action={
-          <Button onPress={() => router.push('/(tabs)/create')}>
-            Criar publicação
-          </Button>
+          <Button onPress={openCreatePost}>Criar publicação</Button>
         }
       />
     );
@@ -60,29 +52,7 @@ export default function FeedScreen() {
 
   return (
     <Screen edges={['top', 'left', 'right']}>
-      <Header
-        brand
-        showBorder={false}
-        right={
-          <Pressable
-            onPress={() => router.push('/(tabs)/inbox')}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Mensagens"
-            style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
-          >
-            <SymbolView
-              name={{
-                ios: 'paperplane',
-                android: 'send',
-                web: 'send',
-              }}
-              size={20}
-              tintColor={tokens.text.primary}
-            />
-          </Pressable>
-        }
-      />
+      <Header brand showBorder={false} />
 
       <FlatList
         data={feed.posts}
@@ -90,12 +60,28 @@ export default function FeedScreen() {
         renderItem={({ item }: { item: Post }) => (
           <PostCard
             post={item}
+            currentUserId={feed.currentUser?.id}
             liking={feed.likingPostIds.has(item.id)}
+            deleting={feed.deletingPostIds.has(item.id)}
             onLike={feed.toggleLike}
+            onDelete={feed.removePost}
+            onOpenProfile={(userId) =>
+              openProfile(userId, feed.currentUser?.id)
+            }
           />
         )}
         ListHeaderComponent={
-          <StoryRail stories={feed.stories} currentUser={currentUser} />
+          <View>
+            <StoryRail stories={feed.stories} currentUser={currentUser} />
+            <View style={styles.composer}>
+              <Text variant="overline" tone="secondary">
+                CONTA A TUA HISTÓRIA
+              </Text>
+              <Button onPress={openCreatePost} style={styles.composerButton}>
+                Criar publicação
+              </Button>
+            </View>
+          </View>
         }
         ListEmptyComponent={renderEmpty}
         ItemSeparatorComponent={() => (
@@ -133,14 +119,13 @@ function profileFromSession(
 }
 
 const styles = StyleSheet.create({
-  iconButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
+  composer: {
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.four,
   },
-  pressed: {
-    opacity: 0.72,
+  composerButton: {
+    marginTop: Spacing.two,
   },
   separator: {
     height: StyleSheet.hairlineWidth,

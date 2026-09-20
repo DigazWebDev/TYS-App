@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -6,7 +6,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 
 import { PostCard } from '@/components/feed/PostCard';
 import { Avatar, Button, EmptyState, Header, Screen, Text } from '@/components/ui';
@@ -25,24 +25,25 @@ type ProfileRow = {
   bio: string | null;
 };
 
-export default function OwnProfileScreen() {
-  const { session } = useAuthSession();
-  const userId = session?.user.id;
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default function UserProfileScreen() {
+  const { id } = useLocalSearchParams<{ id: string | string[] }>();
+  const userId = firstParam(id);
   const tokens = useThemeTokens();
+  const { session } = useAuthSession();
   const [profile, setProfile] = useState<ProfileRow | null>(null);
-  const [signingOut, setSigningOut] = useState(false);
-  const signingOutRef = useRef(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const authorPosts = useAuthorPosts(userId);
   const [likingPostIds, setLikingPostIds] = useState<ReadonlySet<string>>(
     () => new Set()
   );
 
-  const fallbackName = session?.user.email?.split('@')[0] ?? 'tu';
-  const username = profile?.username ?? fallbackName;
-  const displayName = profile?.display_name ?? username;
-
   useEffect(() => {
     if (!userId) {
+      setProfileError('Não encontrámos este perfil.');
       return;
     }
 
@@ -53,16 +54,28 @@ export default function OwnProfileScreen() {
       .select('username, display_name, avatar_url, bio')
       .eq('id', userId)
       .maybeSingle()
-      .then(({ data }) => {
-        if (active && data) {
-          setProfile(data);
+      .then(({ data, error }) => {
+        if (!active) {
+          return;
         }
+        if (error) {
+          setProfileError(error.message);
+          return;
+        }
+        if (!data) {
+          setProfileError('Este perfil não existe.');
+          return;
+        }
+        setProfile(data);
+        setProfileError(null);
       });
 
     return () => {
       active = false;
     };
   }, [userId]);
+
+  const displayName = profile?.display_name ?? profile?.username ?? 'utilizador';
 
   async function toggleLike(postId: string) {
     const post = authorPosts.posts.find((item) => item.id === postId);
@@ -88,96 +101,65 @@ export default function OwnProfileScreen() {
     void authorPosts.refresh();
   }
 
-  async function signOut() {
-    if (signingOutRef.current) {
-      return;
-    }
-
-    signingOutRef.current = true;
-    setSigningOut(true);
-
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      signingOutRef.current = false;
-      setSigningOut(false);
-      Alert.alert('Erro ao terminar sessão', error.message);
-      return;
-    }
-
-    router.replace('/login');
-  }
-
-  function confirmSignOut() {
-    if (signingOutRef.current) {
-      return;
-    }
-
-    Alert.alert('Terminar sessão', 'Vais sair da TYS neste dispositivo.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Terminar sessão',
-        style: 'destructive',
-        onPress: () => {
-          void signOut();
-        },
-      },
-    ]);
-  }
-
   return (
     <Screen edges={['top', 'left', 'right']}>
-      <Header title="Perfil" showBorder={false} />
+      <Header
+        title={profile ? `@${profile.username}` : 'Perfil'}
+        onBack={() => router.back()}
+        showBorder={false}
+      />
       <FlatList
         data={authorPosts.posts}
         keyExtractor={(item) => item.id}
         renderItem={({ item }: { item: Post }) => (
           <PostCard
             post={item}
-            currentUserId={userId}
+            currentUserId={session?.user.id}
             liking={likingPostIds.has(item.id)}
             deleting={authorPosts.deletingPostIds.has(item.id)}
             onLike={toggleLike}
-            onDelete={authorPosts.removePost}
+            onDelete={
+              session?.user.id === userId ? authorPosts.removePost : undefined
+            }
           />
         )}
         ListHeaderComponent={
-          <View style={styles.header}>
-            <Avatar name={displayName} uri={profile?.avatar_url} size="xl" />
-            <Text variant="title" style={styles.name}>
-              {displayName}
-            </Text>
-            <Text variant="meta" tone="secondary">
-              @{username}
-            </Text>
-            {profile?.bio ? (
-              <Text variant="body" tone="secondary" style={styles.bio}>
-                {profile.bio}
+          profileError ? null : (
+            <View style={styles.header}>
+              <Avatar
+                name={displayName}
+                uri={profile?.avatar_url}
+                size="xl"
+              />
+              <Text variant="title" style={styles.name}>
+                {displayName}
               </Text>
-            ) : null}
-            <Text variant="caption" tone="secondary" style={styles.count}>
-              {authorPosts.count === 1
-                ? '1 publicação'
-                : `${authorPosts.count} publicações`}
-            </Text>
-            <View style={styles.actions}>
-              <Button variant="secondary" disabled>
-                Editar perfil
-              </Button>
-              <Button
-                variant="ghost"
-                loading={signingOut}
-                onPress={confirmSignOut}
-                accessibilityLabel="Terminar sessão"
-              >
-                Terminar sessão
-              </Button>
+              {profile ? (
+                <Text variant="meta" tone="secondary">
+                  @{profile.username}
+                </Text>
+              ) : null}
+              {profile?.bio ? (
+                <Text variant="body" tone="secondary" style={styles.bio}>
+                  {profile.bio}
+                </Text>
+              ) : null}
+              <Text variant="caption" tone="secondary" style={styles.count}>
+                {authorPosts.count === 1
+                  ? '1 publicação'
+                  : `${authorPosts.count} publicações`}
+              </Text>
             </View>
-          </View>
+          )
         }
         ListEmptyComponent={
-          authorPosts.status === 'loading' ? (
-            <EmptyState title="A carregar" description="A trazer as tuas histórias." />
+          profileError ? (
+            <EmptyState
+              title="Perfil indisponível"
+              description={profileError}
+            />
+          ) : authorPosts.status === 'loading' ? (
+            <EmptyState title="A carregar" description="A trazer as histórias." />
           ) : authorPosts.status === 'error' ? (
             <EmptyState
               title="Não foi possível carregar"
@@ -190,13 +172,8 @@ export default function OwnProfileScreen() {
             />
           ) : (
             <EmptyState
-              title="Ainda não publicaste"
-              description="A tua primeira história aparece aqui e no feed."
-              action={
-                <Button onPress={() => router.push('/(tabs)/create')}>
-                  Criar publicação
-                </Button>
-              }
+              title="Ainda não há histórias"
+              description="Este perfil ainda não publicou na TYS."
             />
           )
         }
@@ -238,11 +215,6 @@ const styles = StyleSheet.create({
   },
   count: {
     marginTop: Spacing.two,
-  },
-  actions: {
-    width: '100%',
-    marginTop: Spacing.four,
-    gap: Spacing.two,
   },
   separator: {
     height: StyleSheet.hairlineWidth,
