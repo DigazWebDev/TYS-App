@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -13,23 +13,19 @@ import { Avatar, Button, EmptyState, Header, Screen, Text } from '@/components/u
 import { Spacing } from '@/constants/theme';
 import { useAuthSession } from '@/hooks/use-auth-session';
 import { useAuthorPosts } from '@/hooks/use-author-posts';
+import { useOwnProfile } from '@/hooks/use-own-profile';
 import { useThemeTokens } from '@/hooks/use-theme';
+import { publicLabel } from '@/lib/identity';
+import { openEditProfile } from '@/lib/navigation';
 import { likePost, unlikePost } from '@/lib/post-likes';
 import { supabase } from '@/lib/supabase';
 import type { Post } from '@/types/post';
-
-type ProfileRow = {
-  username: string;
-  display_name: string | null;
-  avatar_url: string | null;
-  bio: string | null;
-};
 
 export default function OwnProfileScreen() {
   const { session } = useAuthSession();
   const userId = session?.user.id;
   const tokens = useThemeTokens();
-  const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const profile = useOwnProfile();
   const [signingOut, setSigningOut] = useState(false);
   const signingOutRef = useRef(false);
   const authorPosts = useAuthorPosts(userId);
@@ -37,32 +33,10 @@ export default function OwnProfileScreen() {
     () => new Set()
   );
 
-  const fallbackName = session?.user.email?.split('@')[0] ?? 'tu';
-  const username = profile?.username ?? fallbackName;
-  const displayName = profile?.display_name ?? username;
-
-  useEffect(() => {
-    if (!userId) {
-      return;
-    }
-
-    let active = true;
-
-    supabase
-      .from('profiles')
-      .select('username, display_name, avatar_url, bio')
-      .eq('id', userId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (active && data) {
-          setProfile(data);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [userId]);
+  const displayName = publicLabel({
+    displayName: profile?.display_name,
+    username: profile?.username,
+  });
 
   async function toggleLike(postId: string) {
     const post = authorPosts.posts.find((item) => item.id === postId);
@@ -147,9 +121,11 @@ export default function OwnProfileScreen() {
             <Text variant="title" style={styles.name}>
               {displayName}
             </Text>
-            <Text variant="meta" tone="secondary">
-              @{username}
-            </Text>
+            {profile?.display_name && profile.username ? (
+              <Text variant="meta" tone="secondary">
+                @{profile.username}
+              </Text>
+            ) : null}
             {profile?.bio ? (
               <Text variant="body" tone="secondary" style={styles.bio}>
                 {profile.bio}
@@ -161,7 +137,11 @@ export default function OwnProfileScreen() {
                 : `${authorPosts.count} publicações`}
             </Text>
             <View style={styles.actions}>
-              <Button variant="secondary" disabled>
+              <Button
+                variant="secondary"
+                onPress={openEditProfile}
+                accessibilityLabel="Editar perfil"
+              >
                 Editar perfil
               </Button>
               <Button

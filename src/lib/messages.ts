@@ -15,7 +15,15 @@ export const MESSAGE_BODY_MAX_LENGTH = 4000;
 export const MESSAGE_HISTORY_LIMIT = 200;
 
 const LOAD_CONVERSATION_ERROR = 'Não foi possível carregar a conversa.';
+const LOAD_INBOX_ERROR = 'Não foi possível carregar as conversas.';
 const SEND_MESSAGE_ERROR = 'Não foi possível enviar a mensagem. Tenta novamente.';
+
+/**
+ * First inbox page, newest activity first.
+ * A later page can continue before the oldest loaded updated_at/id.
+ * The embedded messages resource is limited to the latest row per conversation.
+ */
+export const INBOX_CONVERSATION_LIMIT = 50;
 
 export type ChatParticipant = {
   id: string;
@@ -30,6 +38,19 @@ export type DirectMessage = {
   authorId: string;
   body: string;
   createdAt: string;
+};
+
+export type InboxLastMessage = {
+  id: string;
+  body: string;
+  createdAt: string;
+};
+
+export type InboxConversation = {
+  conversationId: string;
+  otherUser: ChatParticipant;
+  lastMessage: InboxLastMessage | null;
+  updatedAt: string;
 };
 
 export function isUserId(value: string) {
@@ -138,7 +159,7 @@ export async function getDirectConversation(conversationId: string) {
   return {
     participant: {
       id: otherUserId,
-      username: profile?.username?.replace(/^@/, '') || 'utilizador',
+      username: profile?.username?.replace(/^@/, '') || '',
       displayName: profile?.display_name ?? null,
       avatarUrl: profile?.avatar_url ?? null,
     } satisfies ChatParticipant,
@@ -216,4 +237,167 @@ export async function sendMessage(conversationId: string, rawBody: string) {
     } satisfies DirectMessage,
     error: null,
   };
+}
+
+const INBOX_SELECT = `
+  id,
+  updated_at,
+  is_direct,
+  direct_user_low,
+  direct_user_high,
+  low_profile:profiles!conversations_direct_user_low_fkey (
+    id,
+    username,
+    display_name,
+    avatar_url
+  ),
+  high_profile:profiles!conversations_direct_user_high_fkey (
+    id,
+    username,
+    display_name,
+    avatar_url
+  ),
+  messages (
+    id,
+    body,
+    created_at
+  )
+`;
+
+type ProfileEmbed = {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+};
+
+function firstRecord(value: unknown) {
+  const row = Array.isArray(value) ? value[0] : value;
+  if (!row || typeof row !== 'object') {
+    return null;
+  }
+  return row as Record<string, unknown>;
+}
+
+function readProfile(value: unknown): ProfileEmbed | null {
+  const record = firstRecord(value);
+  if (!record || typeof record.id !== 'string') {
+    return null;
+  }
+
+  return {
+    id: record.id,
+    username: typeof record.username === 'string' ? record.username : null,
+    display_name:
+      typeof record.display_name === 'string' ? record.display_name : null,
+    avatar_url: typeof record.avatar_url === 'string' ? record.avatar_url : null,
+  };
+}
+
+function readLastMessage(value: unknown): InboxLastMessage | null {
+  const rows = Array.isArray(value) ? value : value ? [value] : [];
+  let latest: InboxLastMessage | null = null;
+
+  for (const entry of rows) {
+    const record = firstRecord(entry);
+    if (
+      !record ||
+      typeof record.id !== 'string' ||
+      typeof record.body !== 'string' ||
+      typeof record.created_at !== 'string'
+    ) {
+      continue;
+    }
+
+    const candidate = {
+      id: record.id,
+      body: record.body,
+      createdAt: record.created_at,
+    };
+
+    if (
+      !latest ||
+      candidate.createdAt > latest.createdAt ||
+      (candidate.createdAt === latest.createdAt && candidate.id > latest.id)
+    ) {
+      latest = candidate;
+    }
+  }
+
+  return latest;
+}
+
+function participantFromProfile(
+  userId: string,
+  profile: ProfileEmbed | null
+): ChatParticipant {
+  return {
+    id: userId,
+    username: profile?.username?.replace(/^@/, '') || '',
+    displayName: profile?.display_name ?? null,
+    avatarUrl: profile?.avatar_url ?? null,
+  };
+}
+
+export async function getInboxConversations() {
+  const userId = await currentUserId();
+  if (!userId) {
+    return { conversations: [] as InboxConversation[], error: LOAD_INBOX_ERROR };
+  }
+
+  const { data, error } = await supabase
+    .from('conversations')
+    .select(INBOX_SELECT)
+    .eq('is_direct', true)
+    .order('updated_at', { ascending: false })
+    .order('id', { ascending: false })
+    .order('created_at', { referencedTable: 'messages', ascending: false })
+    .order('id', { referencedTable: 'messages', ascending: false })
+    .limit(INBOX_CONVERSATION_LIMIT)
+    .limit(1, { referencedTable: 'messages' });
+
+  if (error) {
+    warnDev('getInboxConversations', error.code);
+    return { conversations: [] as InboxConversation[], error: LOAD_INBOX_ERROR };
+  }
+
+  const conversations: InboxConversation[] = [];
+
+  for (const entry of data ?? []) {
+    const row = firstRecord(entry);
+    if (
+      !row ||
+      row.is_direct !== true ||
+      typeof row.id !== 'string' ||
+      typeof row.updated_at !== 'string' ||
+      typeof row.direct_user_low !== 'string' ||
+      typeof row.direct_user_high !== 'string'
+    ) {
+      continue;
+    }
+
+    const otherUserId =
+      row.direct_user_low === userId
+        ? row.direct_user_high
+        : row.direct_user_high === userId
+          ? row.direct_user_low
+          : null;
+
+    if (!otherUserId) {
+      continue;
+    }
+
+    const profile = readProfile(
+      otherUserId === row.direct_user_low ? row.low_profile : row.high_profile
+    );
+
+    conversations.push({
+      conversationId: row.id,
+      otherUser: participantFromProfile(otherUserId, profile),
+      lastMessage: readLastMessage(row.messages),
+      updatedAt: row.updated_at,
+    });
+  }
+
+  return { conversations, error: null };
 }

@@ -11,14 +11,21 @@ import { StoryRail } from '@/components/feed/StoryRail';
 import { Button, EmptyState, Header, Screen, Text } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useFeed } from '@/hooks/use-feed';
+import { useOwnProfile } from '@/hooks/use-own-profile';
 import { useThemeTokens } from '@/hooks/use-theme';
 import { openCreatePost, openProfile } from '@/lib/navigation';
-import type { Post, ProfilePreview } from '@/types/post';
+import type { Post } from '@/types/post';
 
 export default function FeedScreen() {
   const tokens = useThemeTokens();
   const feed = useFeed();
-  const currentUser = profileFromSession(feed.currentUser);
+  const ownProfile = useOwnProfile();
+  const currentUser = {
+    id: feed.currentUser?.id ?? 'me',
+    username: ownProfile?.username ?? 'tu',
+    displayName: ownProfile?.display_name ?? null,
+    avatarUrl: ownProfile?.avatar_url ?? null,
+  };
 
   function renderEmpty() {
     if (feed.status === 'loading') {
@@ -104,18 +111,6 @@ export default function FeedScreen() {
       />
     </Screen>
   );
-}
-
-function profileFromSession(
-  user: { id: string; email?: string } | null
-): ProfilePreview {
-  const username = user?.email?.split('@')[0] ?? 'tu';
-  return {
-    id: user?.id ?? 'me',
-    username,
-    displayName: username,
-    avatarUrl: null,
-  };
 }
 
 const styles = StyleSheet.create({

@@ -1,3 +1,25 @@
+export function formatCompactTimestamp(isoDate: string) {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const now = new Date();
+  const isToday =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+
+  if (isToday) {
+    return date.toLocaleTimeString('pt-PT', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  return formatRelativeTime(isoDate);
+}
+
 export function formatRelativeTime(isoDate: string) {
   const then = new Date(isoDate).getTime();
   if (Number.isNaN(then)) {

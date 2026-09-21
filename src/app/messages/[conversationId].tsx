@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -16,8 +16,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MessageBubble } from '@/components/messages/MessageBubble';
 import { Avatar, Button, EmptyState, Header, Input, Screen, Text } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
+import { useAndroidChatKeyboardInset } from '@/hooks/use-android-chat-keyboard';
 import { useAuthSession } from '@/hooks/use-auth-session';
 import { useThemeTokens } from '@/hooks/use-theme';
+import { publicLabel } from '@/lib/identity';
 import {
   getConversationMessages,
   getDirectConversation,
@@ -65,6 +67,7 @@ function mergeChronological(
 export default function ConversationScreen() {
   const tokens = useThemeTokens();
   const insets = useSafeAreaInsets();
+  const chatKeyboard = useAndroidChatKeyboardInset();
   const { conversationId: conversationParam } = useLocalSearchParams<{
     conversationId: string | string[];
   }>();
@@ -92,7 +95,12 @@ export default function ConversationScreen() {
   const canSend =
     trimmedLength > 0 && draft.length <= MESSAGE_BODY_MAX_LENGTH && !sending;
   const nearLimit = draft.length >= MESSAGE_BODY_MAX_LENGTH - 40;
-  const displayName = participant?.displayName ?? participant?.username ?? 'Mensagem';
+  const displayName = participant
+    ? publicLabel({
+        displayName: participant.displayName,
+        username: participant.username,
+      })
+    : 'Mensagem';
 
   const load = useCallback(async () => {
     if (!conversationId || !isUserId(conversationId)) {
@@ -144,6 +152,16 @@ export default function ConversationScreen() {
     loadedIdRef.current = conversationId;
     stickToEndRef.current = true;
   }, [conversationId]);
+
+  useEffect(() => {
+    if (chatKeyboard.inset === 0 || messages.length === 0) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToEnd({ animated: false });
+    });
+  }, [chatKeyboard.inset, messages.length]);
 
   useFocusEffect(
     useCallback(() => {
@@ -250,6 +268,107 @@ export default function ConversationScreen() {
     );
   }
 
+  const messagePane = (
+    <>
+      <FlatList
+        ref={listRef}
+        style={styles.flex}
+        data={status === 'ready' ? messages : []}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <MessageBubble
+            body={item.body}
+            createdAt={item.createdAt}
+            isOwn={item.authorId === currentUserId}
+          />
+        )}
+        ListEmptyComponent={renderEmpty}
+        contentContainerStyle={
+          messages.length === 0 || status !== 'ready'
+            ? styles.emptyList
+            : styles.list
+        }
+        refreshControl={
+          status === 'ready' ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                void refresh();
+              }}
+              tintColor={tokens.accent.teal.default}
+              colors={[tokens.accent.teal.default]}
+            />
+          ) : undefined
+        }
+        onContentSizeChange={() => {
+          if (stickToEndRef.current && messages.length > 0) {
+            listRef.current?.scrollToEnd({ animated: false });
+            stickToEndRef.current = false;
+          }
+        }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+        showsVerticalScrollIndicator={false}
+      />
+
+      {status === 'ready' ? (
+        <View
+          style={[
+            styles.composer,
+            {
+              paddingBottom:
+                chatKeyboard.inset > 0
+                  ? Spacing.two
+                  : Math.max(insets.bottom, Spacing.three),
+            },
+          ]}
+        >
+          <View style={styles.composerRow}>
+            <Input
+              value={draft}
+              onChangeText={handleChange}
+              placeholder="Mensagem"
+              multiline
+              maxLength={MESSAGE_BODY_MAX_LENGTH}
+              invalid={Boolean(draftError)}
+              editable={!sending}
+              accessibilityLabel="Mensagem"
+              autoCapitalize="sentences"
+              containerStyle={styles.composerInput}
+              style={styles.composerField}
+            />
+            <Button
+              onPress={() => {
+                void handleSend();
+              }}
+              loading={sending}
+              disabled={!canSend}
+              accessibilityLabel="Enviar mensagem"
+              style={styles.send}
+            >
+              Enviar
+            </Button>
+          </View>
+          {draftError || nearLimit ? (
+            <View style={styles.metaRow}>
+              <Text variant="caption" style={styles.hint}>
+                {draftError ?? ''}
+              </Text>
+              <Text
+                variant="caption"
+                tone={nearLimit ? 'accent' : 'secondary'}
+                style={styles.counter}
+              >
+                {draft.length}/{MESSAGE_BODY_MAX_LENGTH}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+    </>
+  );
+
   return (
     <Screen edges={['top', 'left', 'right']}>
       {status === 'ready' && participant ? (
@@ -301,102 +420,26 @@ export default function ConversationScreen() {
         />
       )}
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
-      >
-        <FlatList
-          ref={listRef}
-          data={status === 'ready' ? messages : []}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <MessageBubble
-              body={item.body}
-              createdAt={item.createdAt}
-              isOwn={item.authorId === currentUserId}
-            />
-          )}
-          ListEmptyComponent={renderEmpty}
-          contentContainerStyle={
-            messages.length === 0 || status !== 'ready'
-              ? styles.emptyList
-              : styles.list
-          }
-          refreshControl={
-            status === 'ready' ? (
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={() => {
-                  void refresh();
-                }}
-                tintColor={tokens.accent.teal.default}
-                colors={[tokens.accent.teal.default]}
-              />
-            ) : undefined
-          }
-          onContentSizeChange={() => {
-            if (stickToEndRef.current && messages.length > 0) {
-              listRef.current?.scrollToEnd({ animated: false });
-              stickToEndRef.current = false;
-            }
-          }}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          automaticallyAdjustKeyboardInsets
-          showsVerticalScrollIndicator={false}
-        />
-
-        {status === 'ready' ? (
+      {Platform.OS === 'ios' ? (
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior="padding"
+          keyboardVerticalOffset={0}
+        >
+          {messagePane}
+        </KeyboardAvoidingView>
+      ) : (
+        <View style={styles.flex} onLayout={chatKeyboard.onLayout}>
           <View
             style={[
-              styles.composer,
-              { paddingBottom: Math.max(insets.bottom, Spacing.three) },
+              styles.flex,
+              chatKeyboard.inset > 0 && { paddingBottom: chatKeyboard.inset },
             ]}
           >
-            <View style={styles.composerRow}>
-              <Input
-                value={draft}
-                onChangeText={handleChange}
-                placeholder="Mensagem"
-                multiline
-                maxLength={MESSAGE_BODY_MAX_LENGTH}
-                invalid={Boolean(draftError)}
-                editable={!sending}
-                accessibilityLabel="Mensagem"
-                autoCapitalize="sentences"
-                containerStyle={styles.composerInput}
-                style={styles.composerField}
-              />
-              <Button
-                onPress={() => {
-                  void handleSend();
-                }}
-                loading={sending}
-                disabled={!canSend}
-                accessibilityLabel="Enviar mensagem"
-                style={styles.send}
-              >
-                Enviar
-              </Button>
-            </View>
-            {draftError || nearLimit ? (
-              <View style={styles.metaRow}>
-                <Text variant="caption" style={styles.hint}>
-                  {draftError ?? ''}
-                </Text>
-                <Text
-                  variant="caption"
-                  tone={nearLimit ? 'accent' : 'secondary'}
-                  style={styles.counter}
-                >
-                  {draft.length}/{MESSAGE_BODY_MAX_LENGTH}
-                </Text>
-              </View>
-            ) : null}
+            {messagePane}
           </View>
-        ) : null}
-      </KeyboardAvoidingView>
+        </View>
+      )}
     </Screen>
   );
 }

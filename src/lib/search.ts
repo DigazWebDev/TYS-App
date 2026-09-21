@@ -18,6 +18,35 @@ function escapeIlike(value: string) {
     .replace(/[,()]/g, ' ');
 }
 
+export async function searchProfiles(rawQuery: string, excludeUserId?: string) {
+  const query = rawQuery.trim();
+
+  if (query.length < 2) {
+    return [];
+  }
+
+  const pattern = `%${escapeIlike(query)}%`;
+  let request = supabase
+    .from('profiles')
+    .select('id, username, display_name, avatar_url')
+    .or(`username.ilike."${pattern}",display_name.ilike."${pattern}"`)
+    .limit(SEARCH_LIMIT);
+
+  if (excludeUserId) {
+    request = request.neq('id', excludeUserId);
+  }
+
+  const { data, error } = await request;
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? [])
+    .map(profileFromRow)
+    .filter((profile) => profile.id !== excludeUserId);
+}
+
 export async function searchPublicContent(rawQuery: string): Promise<SearchResults> {
   const query = rawQuery.trim();
 
@@ -27,12 +56,8 @@ export async function searchPublicContent(rawQuery: string): Promise<SearchResul
 
   const pattern = `%${escapeIlike(query)}%`;
 
-  const [profilesResult, postsResult] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select('id, username, display_name, avatar_url')
-      .or(`username.ilike."${pattern}",display_name.ilike."${pattern}"`)
-      .limit(SEARCH_LIMIT),
+  const [profiles, postsResult] = await Promise.all([
+    searchProfiles(query),
     supabase
       .from('posts')
       .select(
@@ -54,15 +79,9 @@ export async function searchPublicContent(rawQuery: string): Promise<SearchResul
       .limit(SEARCH_LIMIT),
   ]);
 
-  if (profilesResult.error) {
-    throw new Error(profilesResult.error.message);
-  }
-
   if (postsResult.error) {
     throw new Error(postsResult.error.message);
   }
-
-  const profiles = (profilesResult.data ?? []).map(profileFromRow);
   const posts: Post[] = (postsResult.data ?? []).map((row) => {
     const authorRow = Array.isArray(row.author) ? row.author[0] : row.author;
 

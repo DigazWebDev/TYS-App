@@ -21,6 +21,14 @@ export function openDirectConversation(conversationId: string) {
   router.push(`/messages/${conversationId}` as Href);
 }
 
+export function openNewMessage() {
+  router.push('/messages/new' as Href);
+}
+
+export function openEditProfile() {
+  router.push('/edit-profile' as Href);
+}
+
 export function openSearch() {
   router.push('/(tabs)/search' as Href);
 }

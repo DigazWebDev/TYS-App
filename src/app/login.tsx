@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -11,15 +11,20 @@ import {
 import { type Href, router } from 'expo-router';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandWordmark } from '@/components/BrandWordmark';
 import { Button, Divider, Input, Screen, Text } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
+import { useAndroidKeyboardOverlap } from '@/hooks/use-android-keyboard-overlap';
 import { useThemeName, useThemeTokens } from '@/hooks/use-theme';
 import { supabase } from '../lib/supabase';
 
 export default function LoginScreen() {
   const themeName = useThemeName();
+  const insets = useSafeAreaInsets();
+  const keyboardOverlap = useAndroidKeyboardOverlap();
+  const scrollRef = useRef<ScrollView>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -27,6 +32,17 @@ export default function LoginScreen() {
   const submitting = useRef(false);
 
   const canSubmit = email.trim().length > 0 && password.length > 0;
+  const keyboardLift = Math.max(0, keyboardOverlap - insets.bottom);
+
+  useEffect(() => {
+    if (keyboardLift === 0) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    });
+  }, [keyboardLift]);
 
   async function handleLogin() {
     if (!canSubmit || submitting.current) {
@@ -65,11 +81,15 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
+          ref={scrollRef}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
           automaticallyAdjustKeyboardInsets
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: Spacing.four + keyboardLift },
+          ]}
         >
           <View style={styles.brand}>
             <BrandWordmark size="hero" />

@@ -27,7 +27,19 @@ export default function RootLayout() {
         <Stack.Screen name="create-story" />
         <Stack.Screen name="explore" />
         <Stack.Screen
+          name="edit-profile"
+          options={{
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
           name="user/[id]"
+          options={{
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="messages/new"
           options={{
             presentation: 'card',
           }}

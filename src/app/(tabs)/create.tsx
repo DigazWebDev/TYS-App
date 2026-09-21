@@ -12,7 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar, Button, Header, Input, Screen, Text } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
-import { useAuthSession } from '@/hooks/use-auth-session';
+import { useOwnProfile } from '@/hooks/use-own-profile';
+import { publicLabel } from '@/lib/identity';
 import {
   POST_BODY_MAX_LENGTH,
   createPost,
@@ -21,7 +22,7 @@ import {
 
 export default function CreateScreen() {
   const insets = useSafeAreaInsets();
-  const { session } = useAuthSession();
+  const profile = useOwnProfile();
   const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -30,7 +31,10 @@ export default function CreateScreen() {
   const trimmedLength = body.trim().length;
   const canSubmit = trimmedLength > 0 && body.length <= POST_BODY_MAX_LENGTH;
   const nearLimit = body.length >= POST_BODY_MAX_LENGTH - 20;
-  const authorName = session?.user.email?.split('@')[0] ?? 'tu';
+  const authorName = publicLabel({
+    displayName: profile?.display_name,
+    username: profile?.username,
+  });
 
   function handleChange(next: string) {
     setBody(next);
@@ -101,7 +105,7 @@ export default function CreateScreen() {
           <View style={styles.identity}>
             <Avatar name={authorName} size="sm" />
             <Text variant="meta" tone="secondary">
-              @{authorName}
+              {profile?.username ? `@${profile.username}` : authorName}
             </Text>
           </View>
 
