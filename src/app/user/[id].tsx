@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -14,6 +14,8 @@ import { Spacing } from '@/constants/theme';
 import { useAuthSession } from '@/hooks/use-auth-session';
 import { useAuthorPosts } from '@/hooks/use-author-posts';
 import { useThemeTokens } from '@/hooks/use-theme';
+import { createOrGetDirectConversation } from '@/lib/messages';
+import { openDirectConversation } from '@/lib/navigation';
 import { likePost, unlikePost } from '@/lib/post-likes';
 import { supabase } from '@/lib/supabase';
 import type { Post } from '@/types/post';
@@ -40,6 +42,8 @@ export default function UserProfileScreen() {
   const [likingPostIds, setLikingPostIds] = useState<ReadonlySet<string>>(
     () => new Set()
   );
+  const [openingConversation, setOpeningConversation] = useState(false);
+  const openingConversationRef = useRef(false);
 
   useEffect(() => {
     if (!userId) {
@@ -76,6 +80,32 @@ export default function UserProfileScreen() {
   }, [userId]);
 
   const displayName = profile?.display_name ?? profile?.username ?? 'utilizador';
+  const canMessage = Boolean(
+    profile && userId && session?.user.id && session.user.id !== userId
+  );
+
+  async function sendMessage() {
+    if (!userId || !canMessage || openingConversationRef.current) {
+      return;
+    }
+
+    openingConversationRef.current = true;
+    setOpeningConversation(true);
+
+    try {
+      const conversationId = await createOrGetDirectConversation(userId);
+      openDirectConversation(conversationId);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível abrir a conversa. Tenta novamente.';
+      Alert.alert('Mensagem', message);
+    } finally {
+      openingConversationRef.current = false;
+      setOpeningConversation(false);
+    }
+  }
 
   async function toggleLike(postId: string) {
     const post = authorPosts.posts.find((item) => item.id === postId);
@@ -149,6 +179,17 @@ export default function UserProfileScreen() {
                   ? '1 publicação'
                   : `${authorPosts.count} publicações`}
               </Text>
+              {canMessage ? (
+                <View style={styles.actions}>
+                  <Button
+                    loading={openingConversation}
+                    onPress={sendMessage}
+                    accessibilityLabel="Enviar mensagem"
+                  >
+                    Enviar mensagem
+                  </Button>
+                </View>
+              ) : null}
             </View>
           )
         }
@@ -215,6 +256,10 @@ const styles = StyleSheet.create({
   },
   count: {
     marginTop: Spacing.two,
+  },
+  actions: {
+    width: '100%',
+    marginTop: Spacing.four,
   },
   separator: {
     height: StyleSheet.hairlineWidth,

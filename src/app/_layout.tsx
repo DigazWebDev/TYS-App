@@ -33,6 +33,12 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="messages/[conversationId]"
+          options={{
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
           name="post/[id]"
           options={{
             presentation: 'modal',

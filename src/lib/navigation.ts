@@ -17,6 +17,10 @@ export function openMessages() {
   router.push('/(tabs)/messages' as Href);
 }
 
+export function openDirectConversation(conversationId: string) {
+  router.push(`/messages/${conversationId}` as Href);
+}
+
 export function openSearch() {
   router.push('/(tabs)/search' as Href);
 }
