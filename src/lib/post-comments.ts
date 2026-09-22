@@ -65,7 +65,7 @@ function messageForCommentError(error: { code?: string; message: string }) {
     return 'Não tens permissão para atualizar este comentário.';
   }
 
-  return error.message || 'Não foi possível atualizar o comentário. Tenta novamente.';
+  return 'Não foi possível atualizar o comentário. Tenta novamente.';
 }
 
 function profileFromRow(row: {
@@ -76,7 +76,7 @@ function profileFromRow(row: {
 }): ProfilePreview {
   return {
     id: row.id,
-    username: row.username?.replace(/^@/, '') || 'utilizador',
+    username: row.username?.replace(/^@/, '') ?? '',
     displayName: row.display_name ?? null,
     avatarUrl: row.avatar_url ?? null,
   };
@@ -112,7 +112,7 @@ function commentFromRow(row: {
     body: row.body,
     createdAt: row.created_at,
     author: profileFromRow(
-      authorRow ?? { id: row.author_id, username: 'utilizador' }
+      authorRow ?? { id: row.author_id, username: '' }
     ),
   };
 }

@@ -15,9 +15,10 @@ import { Avatar, Button, EmptyState, Header, Input, Screen, Text } from '@/compo
 import { Spacing } from '@/constants/theme';
 import { useAuthSession } from '@/hooks/use-auth-session';
 import { useThemeTokens } from '@/hooks/use-theme';
+import { publicLabel } from '@/lib/identity';
 import { createOrGetDirectConversation } from '@/lib/messages';
 import { openDirectConversation } from '@/lib/navigation';
-import { searchProfiles } from '@/lib/search';
+import { profileSearchTerm, searchProfiles } from '@/lib/search';
 import type { ProfilePreview } from '@/types/post';
 
 type SearchStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -47,7 +48,7 @@ export default function NewMessageScreen() {
   }, [query]);
 
   useEffect(() => {
-    if (debounced.length < 2) {
+    if (profileSearchTerm(debounced).length < 2) {
       setProfiles([]);
       setStatus('idle');
       return;
@@ -190,7 +191,8 @@ export default function NewMessageScreen() {
             />
           )}
           renderItem={({ item }) => {
-            const name = item.displayName ?? item.username;
+            const label = publicLabel(item);
+            const username = item.username.replace(/^@/, '').trim();
             const opening = openingUserId === item.id;
 
             return (
@@ -200,17 +202,19 @@ export default function NewMessageScreen() {
                 }}
                 disabled={Boolean(openingUserId)}
                 accessibilityRole="button"
-                accessibilityLabel={`Enviar mensagem a ${name}`}
+                accessibilityLabel={`Enviar mensagem a ${label}`}
                 style={({ pressed }) => [styles.row, pressed && styles.pressed]}
               >
-                <Avatar name={name} uri={item.avatarUrl} size="md" />
+                <Avatar name={label} uri={item.avatarUrl} size="md" />
                 <View style={styles.rowBody}>
                   <Text variant="meta" numberOfLines={1}>
-                    {name}
+                    {label}
                   </Text>
-                  <Text variant="caption" tone="secondary" numberOfLines={1}>
-                    @{item.username}
-                  </Text>
+                  {item.displayName?.trim() && username ? (
+                    <Text variant="caption" tone="secondary" numberOfLines={1}>
+                      @{username}
+                    </Text>
+                  ) : null}
                 </View>
                 {opening ? (
                   <ActivityIndicator color={tokens.accent.teal.default} />

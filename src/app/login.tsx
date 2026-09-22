@@ -18,6 +18,7 @@ import { Button, Divider, Input, Screen, Text } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useAndroidKeyboardOverlap } from '@/hooks/use-android-keyboard-overlap';
 import { useThemeName, useThemeTokens } from '@/hooks/use-theme';
+import { friendlyAuthError } from '@/lib/auth-errors';
 import { supabase } from '../lib/supabase';
 
 export default function LoginScreen() {
@@ -64,7 +65,10 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (error) {
-      Alert.alert('Erro ao entrar', error.message);
+      Alert.alert(
+        'Erro ao entrar',
+        friendlyAuthError(error, 'Não foi possível entrar. Tenta novamente.')
+      );
       return;
     }
 

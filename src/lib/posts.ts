@@ -39,7 +39,7 @@ function messageForPostError(error: { code?: string; message: string }) {
     return 'Não tens permissão para alterar esta publicação.';
   }
 
-  return error.message || 'Não foi possível concluir. Tenta novamente.';
+  return 'Não foi possível concluir. Tenta novamente.';
 }
 
 export async function createPost(rawBody: string) {

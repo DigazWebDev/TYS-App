@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -6,17 +6,20 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 import { PostCard } from '@/components/feed/PostCard';
+import { ProfileStats } from '@/components/social/ProfileStats';
 import { Avatar, Button, EmptyState, Header, Screen, Text } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useAuthSession } from '@/hooks/use-auth-session';
 import { useAuthorPosts } from '@/hooks/use-author-posts';
 import { useOwnProfile } from '@/hooks/use-own-profile';
 import { useThemeTokens } from '@/hooks/use-theme';
+import { friendlyAuthError } from '@/lib/auth-errors';
+import { fetchFollowCounts } from '@/lib/follows';
 import { publicLabel } from '@/lib/identity';
-import { openEditProfile } from '@/lib/navigation';
+import { openEditProfile, openFollowers, openFollowing } from '@/lib/navigation';
 import { likePost, unlikePost } from '@/lib/post-likes';
 import { supabase } from '@/lib/supabase';
 import type { Post } from '@/types/post';
@@ -31,6 +34,25 @@ export default function OwnProfileScreen() {
   const authorPosts = useAuthorPosts(userId);
   const [likingPostIds, setLikingPostIds] = useState<ReadonlySet<string>>(
     () => new Set()
+  );
+  const [followers, setFollowers] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+
+  const loadCounts = useCallback(async () => {
+    if (!userId) {
+      return;
+    }
+    const counts = await fetchFollowCounts(userId);
+    if (!counts.error) {
+      setFollowers(counts.followers);
+      setFollowingCount(counts.following);
+    }
+  }, [userId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadCounts();
+    }, [loadCounts])
   );
 
   const displayName = publicLabel({
@@ -75,7 +97,10 @@ export default function OwnProfileScreen() {
     if (error) {
       signingOutRef.current = false;
       setSigningOut(false);
-      Alert.alert('Erro ao terminar sessão', error.message);
+      Alert.alert(
+        'Erro ao terminar sessão',
+        friendlyAuthError(error, 'Não foi possível terminar a sessão.')
+      );
       return;
     }
 
@@ -131,11 +156,15 @@ export default function OwnProfileScreen() {
                 {profile.bio}
               </Text>
             ) : null}
-            <Text variant="caption" tone="secondary" style={styles.count}>
-              {authorPosts.count === 1
-                ? '1 publicação'
-                : `${authorPosts.count} publicações`}
-            </Text>
+            {userId ? (
+              <ProfileStats
+                posts={authorPosts.count}
+                followers={followers}
+                following={followingCount}
+                onFollowers={() => openFollowers(userId)}
+                onFollowing={() => openFollowing(userId)}
+              />
+            ) : null}
             <View style={styles.actions}>
               <Button
                 variant="secondary"
@@ -188,7 +217,10 @@ export default function OwnProfileScreen() {
         refreshControl={
           <RefreshControl
             refreshing={authorPosts.refreshing}
-            onRefresh={authorPosts.refresh}
+            onRefresh={() => {
+              void authorPosts.refresh();
+              void loadCounts();
+            }}
             tintColor={tokens.accent.teal.default}
             colors={[tokens.accent.teal.default]}
           />
@@ -215,9 +247,6 @@ const styles = StyleSheet.create({
   bio: {
     marginTop: Spacing.two,
     textAlign: 'center',
-  },
-  count: {
-    marginTop: Spacing.two,
   },
   actions: {
     width: '100%',

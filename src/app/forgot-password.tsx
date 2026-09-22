@@ -10,6 +10,7 @@ import { router } from 'expo-router';
 
 import { Button, Header, Input, Screen, Text } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
+import { friendlyAuthError } from '@/lib/auth-errors';
 import { supabase } from '../lib/supabase';
 
 export default function ForgotPasswordScreen() {
@@ -33,7 +34,10 @@ export default function ForgotPasswordScreen() {
     setLoading(false);
 
     if (error) {
-      Alert.alert('Erro', error.message);
+      Alert.alert(
+        'Erro',
+        friendlyAuthError(error, 'Não foi possível enviar o email. Tenta novamente.')
+      );
       return;
     }
 

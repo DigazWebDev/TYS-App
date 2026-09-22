@@ -24,7 +24,13 @@ export default function RootLayout() {
       <Stack.Protected guard={isLoggedIn}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="create-story" />
+        <Stack.Screen
+          name="create-story"
+          options={{
+            presentation: 'fullScreenModal',
+            animation: 'fade',
+          }}
+        />
         <Stack.Screen name="explore" />
         <Stack.Screen
           name="edit-profile"
@@ -33,7 +39,19 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
-          name="user/[id]"
+          name="user/[id]/index"
+          options={{
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="user/[id]/followers"
+          options={{
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="user/[id]/following"
           options={{
             presentation: 'card',
           }}

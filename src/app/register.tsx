@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native'
 import { router } from 'expo-router'
+import { friendlyAuthError } from '@/lib/auth-errors'
 import { supabase } from '../lib/supabase'
 
 export default function RegisterScreen() {
@@ -42,7 +43,10 @@ export default function RegisterScreen() {
     setLoading(false)
 
     if (error) {
-      Alert.alert('Erro ao criar conta', error.message)
+      Alert.alert(
+        'Erro ao criar conta',
+        friendlyAuthError(error, 'Não foi possível criar a conta. Tenta novamente.')
+      )
       return
     }
 

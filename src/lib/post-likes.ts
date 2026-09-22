@@ -40,7 +40,7 @@ function messageForLikeError(error: { code?: string; message: string }) {
     return 'Não tens permissão para atualizar este gosto.';
   }
 
-  return error.message || 'Não foi possível atualizar o gosto. Tenta novamente.';
+  return 'Não foi possível atualizar o gosto. Tenta novamente.';
 }
 
 async function requireUserId() {

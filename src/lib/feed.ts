@@ -4,6 +4,7 @@
  * stories, story_views. Missing relations still degrade to an empty feed.
  */
 
+import { STORIES_FETCH_LIMIT } from '@/constants/stories';
 import { fetchCommentCountsForPosts } from '@/lib/post-comments';
 import { fetchLikesForPosts } from '@/lib/post-likes';
 import { supabase } from '@/lib/supabase';
@@ -45,7 +46,7 @@ export function profileFromRow(row: {
 }): ProfilePreview {
   return {
     id: row.id,
-    username: row.username?.replace(/^@/, '') || 'utilizador',
+    username: row.username?.replace(/^@/, '') ?? '',
     displayName: row.display_name ?? null,
     avatarUrl: row.avatar_url ?? null,
   };
@@ -76,7 +77,7 @@ export async function fetchFeed(userId: string | undefined): Promise<FeedSnapsho
     )
     .gt('expires_at', new Date().toISOString())
     .order('created_at', { ascending: false })
-    .limit(30);
+    .limit(STORIES_FETCH_LIMIT);
 
   const [postsResult, storiesResult] = await Promise.all([postsQuery, storiesQuery]);
 
@@ -105,7 +106,7 @@ export async function fetchFeed(userId: string | undefined): Promise<FeedSnapsho
     return {
       id: row.id,
       author: profileFromRow(
-        authorRow ?? { id: row.user_id, username: 'utilizador' }
+        authorRow ?? { id: row.user_id, username: '' }
       ),
       viewed: userId
         ? views.some((view: { viewer_id: string }) => view.viewer_id === userId)
@@ -150,7 +151,7 @@ async function hydratePosts(postRows: PostRow[]): Promise<Post[]> {
     return {
       id: row.id,
       author: profileFromRow(
-        authorRow ?? { id: 'unknown', username: 'utilizador' }
+        authorRow ?? { id: 'unknown', username: '' }
       ),
       body: row.body ?? '',
       imageUrl: row.image_url ?? null,

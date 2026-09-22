@@ -22,7 +22,7 @@ export default function FeedScreen() {
   const ownProfile = useOwnProfile();
   const currentUser = {
     id: feed.currentUser?.id ?? 'me',
-    username: ownProfile?.username ?? 'tu',
+    username: ownProfile?.username ?? '',
     displayName: ownProfile?.display_name ?? null,
     avatarUrl: ownProfile?.avatar_url ?? null,
   };

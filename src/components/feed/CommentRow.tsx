@@ -4,6 +4,7 @@ import { SymbolView } from 'expo-symbols';
 import { Avatar, Text } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useThemeTokens } from '@/hooks/use-theme';
+import { publicLabel } from '@/lib/identity';
 import { formatRelativeTime } from '@/lib/time';
 import type { PostComment } from '@/types/post';
 
@@ -21,7 +22,7 @@ export function CommentRow({
   onDelete,
 }: CommentRowProps) {
   const tokens = useThemeTokens();
-  const displayName = comment.author.displayName ?? comment.author.username;
+  const label = publicLabel(comment.author);
 
   function confirmDelete() {
     if (!onDelete || deleting) {
@@ -44,11 +45,11 @@ export function CommentRow({
 
   return (
     <View style={styles.row}>
-      <Avatar name={displayName} uri={comment.author.avatarUrl} size="sm" />
+      <Avatar name={label} uri={comment.author.avatarUrl} size="sm" />
       <View style={styles.content}>
         <View style={styles.meta}>
           <Text variant="meta" style={styles.name} numberOfLines={1}>
-            {displayName}
+            {label}
           </Text>
           <Text variant="caption" tone="secondary">
             {formatRelativeTime(comment.createdAt)}

@@ -44,3 +44,8 @@ export function publicLabel(profile: {
 
   return 'Utilizador';
 }
+
+export function publicHandle(username?: string | null) {
+  const value = username?.replace(/^@/, '').trim();
+  return value ? `@${value}` : null;
+}

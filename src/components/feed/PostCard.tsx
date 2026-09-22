@@ -6,6 +6,7 @@ import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { Avatar, Text } from '@/components/ui';
 import { Radius, Spacing } from '@/constants/theme';
 import { useThemeTokens } from '@/hooks/use-theme';
+import { publicHandle, publicLabel } from '@/lib/identity';
 import { formatRelativeTime } from '@/lib/time';
 import type { Post } from '@/types/post';
 
@@ -29,12 +30,17 @@ export function PostCard({
   onOpenProfile,
 }: PostCardProps) {
   const tokens = useThemeTokens();
-  const displayName = post.author.displayName ?? post.author.username;
+  const label = publicLabel(post.author);
+  const handle = post.author.displayName?.trim()
+    ? publicHandle(post.author.username)
+    : null;
+  const publishedAt = formatRelativeTime(post.createdAt);
+  const meta = handle ? `${handle} · ${publishedAt}` : publishedAt;
   const isOwn = Boolean(currentUserId && currentUserId === post.author.id);
 
   async function handleShare() {
     await Share.share({
-      message: `${displayName}: ${post.body}`,
+      message: `${label}: ${post.body}`,
     });
   }
 
@@ -60,21 +66,21 @@ export function PostCard({
   return (
     <View style={styles.card}>
       <View style={styles.top}>
-        <Avatar name={displayName} uri={post.author.avatarUrl} size="sm" />
+        <Avatar name={label} uri={post.author.avatarUrl} size="sm" />
         <Pressable
           onPress={() => onOpenProfile?.(post.author.id)}
           disabled={!onOpenProfile}
           accessibilityRole={onOpenProfile ? 'button' : undefined}
           accessibilityLabel={
-            onOpenProfile ? `Abrir perfil de ${displayName}` : undefined
+            onOpenProfile ? `Abrir perfil de ${label}` : undefined
           }
           style={styles.identity}
         >
           <Text variant="meta" style={styles.username}>
-            {displayName}
+            {label}
           </Text>
           <Text variant="caption" tone="secondary">
-            @{post.author.username} · {formatRelativeTime(post.createdAt)}
+            {meta}
           </Text>
         </Pressable>
         {isOwn && onDelete ? (
@@ -110,7 +116,7 @@ export function PostCard({
           source={{ uri: post.imageUrl }}
           style={[styles.image, { backgroundColor: tokens.background.elevated }]}
           contentFit="cover"
-          accessibilityLabel={`Imagem de ${displayName}`}
+          accessibilityLabel={`Imagem de ${label}`}
         />
       ) : null}
 

@@ -9,6 +9,11 @@ export type SearchResults = {
   posts: Post[];
 };
 
+/** Username lookup term. Strips a leading @ and does not change the stored username. */
+export function profileSearchTerm(raw: string) {
+  return raw.trim().replace(/^@+/, '');
+}
+
 function escapeIlike(value: string) {
   return value
     .replace(/\\/g, '\\\\')
@@ -19,17 +24,18 @@ function escapeIlike(value: string) {
 }
 
 export async function searchProfiles(rawQuery: string, excludeUserId?: string) {
-  const query = rawQuery.trim();
+  const term = profileSearchTerm(rawQuery);
 
-  if (query.length < 2) {
+  if (term.length < 2) {
     return [];
   }
 
-  const pattern = `%${escapeIlike(query)}%`;
+  const usernamePattern = `%${escapeIlike(term.toLowerCase())}%`;
+  const namePattern = `%${escapeIlike(term)}%`;
   let request = supabase
     .from('profiles')
     .select('id, username, display_name, avatar_url')
-    .or(`username.ilike."${pattern}",display_name.ilike."${pattern}"`)
+    .or(`username.ilike."${usernamePattern}",display_name.ilike."${namePattern}"`)
     .limit(SEARCH_LIMIT);
 
   if (excludeUserId) {
@@ -48,16 +54,16 @@ export async function searchProfiles(rawQuery: string, excludeUserId?: string) {
 }
 
 export async function searchPublicContent(rawQuery: string): Promise<SearchResults> {
-  const query = rawQuery.trim();
+  const term = profileSearchTerm(rawQuery);
 
-  if (query.length < 2) {
+  if (term.length < 2) {
     return { profiles: [], posts: [] };
   }
 
-  const pattern = `%${escapeIlike(query)}%`;
+  const pattern = `%${escapeIlike(term)}%`;
 
   const [profiles, postsResult] = await Promise.all([
-    searchProfiles(query),
+    searchProfiles(rawQuery),
     supabase
       .from('posts')
       .select(
@@ -88,7 +94,7 @@ export async function searchPublicContent(rawQuery: string): Promise<SearchResul
     return {
       id: row.id,
       author: profileFromRow(
-        authorRow ?? { id: 'unknown', username: 'utilizador' }
+        authorRow ?? { id: 'unknown', username: '' }
       ),
       body: row.body ?? '',
       imageUrl: row.image_url ?? null,

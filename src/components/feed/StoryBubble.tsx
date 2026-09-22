@@ -4,12 +4,14 @@ import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { Avatar, Text } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useThemeTokens } from '@/hooks/use-theme';
+import { publicLabel } from '@/lib/identity';
 import type { ProfilePreview } from '@/types/post';
 
 type StoryBubbleProps = {
   profile: ProfilePreview;
   viewed?: boolean;
   isOwn?: boolean;
+  hasStory?: boolean;
   onPress: () => void;
 };
 
@@ -17,11 +19,15 @@ export function StoryBubble({
   profile,
   viewed = false,
   isOwn = false,
+  hasStory = false,
   onPress,
 }: StoryBubbleProps) {
   const tokens = useThemeTokens();
+  const label = publicLabel(profile);
   const ringColor = isOwn
-    ? tokens.border.subtle
+    ? hasStory
+      ? tokens.accent.teal.default
+      : tokens.border.subtle
     : viewed
       ? tokens.border.subtle
       : tokens.accent.teal.default;
@@ -31,7 +37,7 @@ export function StoryBubble({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={
-        isOwn ? 'Adicionar story' : `Story de ${profile.username}`
+        isOwn ? (hasStory ? 'As tuas stories' : 'Criar story') : `Story de ${label}`
       }
       style={({ pressed }) => [styles.item, pressed && styles.pressed]}
     >
@@ -44,7 +50,7 @@ export function StoryBubble({
           },
         ]}
       >
-        <Avatar name={profile.username} uri={profile.avatarUrl} size="lg" />
+        <Avatar name={label} uri={profile.avatarUrl} size="lg" />
         {isOwn ? (
           <View
             style={[
@@ -61,7 +67,7 @@ export function StoryBubble({
         ) : null}
       </View>
       <Text variant="caption" tone="secondary" numberOfLines={1} style={styles.name}>
-        {isOwn ? 'A tua story' : profile.username}
+        {isOwn ? 'A tua story' : label}
       </Text>
     </Pressable>
   );

@@ -35,7 +35,22 @@
           "imageWidth": 76
         }
       ],
-      "expo-video"
+      "expo-video",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "O TYS usa a câmara para criares stories.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "O TYS mostra as fotos recentes para as publicares numa story.",
+          "savePhotosPermission": "O TYS guarda fotos na galeria apenas se escolheres.",
+          "granularPermissions": ["photo"]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

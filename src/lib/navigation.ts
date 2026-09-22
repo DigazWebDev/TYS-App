@@ -1,5 +1,13 @@
 import { type Href, router } from 'expo-router';
 
+export function openFollowers(userId: string) {
+  router.push(`/user/${userId}/followers` as Href);
+}
+
+export function openFollowing(userId: string) {
+  router.push(`/user/${userId}/following` as Href);
+}
+
 export function openProfile(userId: string, currentUserId?: string) {
   if (currentUserId && userId === currentUserId) {
     router.push('/(tabs)/profile');

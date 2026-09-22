@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -8,15 +8,18 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { type Href, router } from 'expo-router';
+import { type Href, router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 
 import { Avatar, Button, EmptyState, Header, Input, Screen, Text } from '@/components/ui';
+import { FollowButton } from '@/components/social/FollowButton';
 import { Radius, Spacing } from '@/constants/theme';
 import { useAuthSession } from '@/hooks/use-auth-session';
 import { useThemeTokens } from '@/hooks/use-theme';
+import { publicHandle, publicLabel } from '@/lib/identity';
+import { fetchFollowedIds, type FollowChangeReason } from '@/lib/follows';
 import { openProfile } from '@/lib/navigation';
-import { searchPublicContent, type SearchResults } from '@/lib/search';
+import { profileSearchTerm, searchPublicContent, type SearchResults } from '@/lib/search';
 import { formatRelativeTime } from '@/lib/time';
 import type { Post, ProfilePreview } from '@/types/post';
 
@@ -37,6 +40,9 @@ export default function SearchScreen() {
     profiles: [],
     posts: [],
   });
+  const [followedIds, setFollowedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const changeTick = useRef(0);
+  const overrides = useRef(new Map<string, { following: boolean; at: number }>());
 
   useEffect(() => {
     const timeout = setTimeout(() => setDebounced(query.trim()), 300);
@@ -44,9 +50,10 @@ export default function SearchScreen() {
   }, [query]);
 
   useEffect(() => {
-    if (debounced.length < 2) {
+    const term = profileSearchTerm(debounced);
+    if (term.length < 2) {
       setResults({ profiles: [], posts: [] });
-      setStatus(debounced.length === 0 ? 'idle' : 'ready');
+      setStatus(term.length === 0 ? 'idle' : 'ready');
       setError(null);
       return;
     }
@@ -63,15 +70,11 @@ export default function SearchScreen() {
         setError(null);
         setStatus('ready');
       })
-      .catch((caught) => {
+      .catch(() => {
         if (!active) {
           return;
         }
-        setError(
-          caught instanceof Error
-            ? caught.message
-            : 'Não foi possível pesquisar.'
-        );
+        setError('Não foi possível pesquisar.');
         setStatus('error');
       });
 
@@ -79,6 +82,36 @@ export default function SearchScreen() {
       active = false;
     };
   }, [debounced]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const ids = results.profiles.map((profile) => profile.id);
+      let active = true;
+      const startedTick = changeTick.current;
+
+      void fetchFollowedIds(ids).then((followed) => {
+        if (!active) {
+          return;
+        }
+        for (const [profileId, override] of overrides.current) {
+          if (override.at > startedTick) {
+            if (override.following) {
+              followed.add(profileId);
+            } else {
+              followed.delete(profileId);
+            }
+          } else {
+            overrides.current.delete(profileId);
+          }
+        }
+        setFollowedIds(new Set(followed));
+      });
+
+      return () => {
+        active = false;
+      };
+    }, [results.profiles])
+  );
 
   const items: SearchItem[] = [
     ...results.profiles.map((profile) => ({
@@ -92,6 +125,20 @@ export default function SearchScreen() {
       post,
     })),
   ];
+
+  function changeFollow(profileId: string, following: boolean, _reason: FollowChangeReason) {
+    changeTick.current += 1;
+    overrides.current.set(profileId, { following, at: changeTick.current });
+    setFollowedIds((current) => {
+      const next = new Set(current);
+      if (following) {
+        next.add(profileId);
+      } else {
+        next.delete(profileId);
+      }
+      return next;
+    });
+  }
 
   function renderEmpty() {
     if (status === 'idle') {
@@ -213,32 +260,21 @@ export default function SearchScreen() {
           )}
           renderItem={({ item }) =>
             item.type === 'profile' ? (
-              <Pressable
+              <ProfileResult
+                profile={item.profile}
+                following={followedIds.has(item.profile.id)}
+                showFollow={item.profile.id !== session?.user.id}
                 onPress={() => openProfile(item.profile.id, session?.user.id)}
-                accessibilityRole="button"
-                accessibilityLabel={`Perfil de ${item.profile.displayName ?? item.profile.username}`}
-                style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-              >
-                <Avatar
-                  name={item.profile.displayName ?? item.profile.username}
-                  uri={item.profile.avatarUrl}
-                  size="sm"
-                />
-                <View style={styles.rowBody}>
-                  <Text variant="meta">
-                    {item.profile.displayName ?? item.profile.username}
-                  </Text>
-                  <Text variant="caption" tone="secondary">
-                    @{item.profile.username}
-                  </Text>
-                </View>
-              </Pressable>
+                onFollowChange={(following, reason) =>
+                  changeFollow(item.profile.id, following, reason)
+                }
+              />
             ) : (
               <Pressable
                 onPress={() => router.push(`/post/${item.post.id}` as Href)}
                 accessibilityRole="button"
                 accessibilityLabel="Abrir publicação"
-                style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.postRow, pressed && styles.pressed]}
               >
                 <View
                   style={[
@@ -251,7 +287,7 @@ export default function SearchScreen() {
                     {item.post.body}
                   </Text>
                   <Text variant="caption" tone="secondary" style={styles.postMeta}>
-                    @{item.post.author.username} ·{' '}
+                    {publicLabel(item.post.author)} ·{' '}
                     {formatRelativeTime(item.post.createdAt)}
                   </Text>
                 </View>
@@ -261,6 +297,55 @@ export default function SearchScreen() {
         />
       </KeyboardAvoidingView>
     </Screen>
+  );
+}
+
+function ProfileResult({
+  profile,
+  following,
+  showFollow,
+  onPress,
+  onFollowChange,
+}: {
+  profile: ProfilePreview;
+  following: boolean;
+  showFollow: boolean;
+  onPress: () => void;
+  onFollowChange: (following: boolean, reason: FollowChangeReason) => void;
+}) {
+  const label = publicLabel(profile);
+  const handle = profile.displayName?.trim() ? publicHandle(profile.username) : null;
+
+  return (
+    <View style={styles.row}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`Perfil de ${label}`}
+        style={({ pressed }) => [styles.person, pressed && styles.pressed]}
+      >
+        <Avatar name={label} uri={profile.avatarUrl} size="sm" />
+        <View style={styles.rowBody}>
+          <Text variant="meta" numberOfLines={1}>
+            {label}
+          </Text>
+          {handle ? (
+            <Text variant="caption" tone="secondary" numberOfLines={1}>
+              {handle}
+            </Text>
+          ) : null}
+        </View>
+      </Pressable>
+      {showFollow ? (
+        <FollowButton
+          compact
+          profileId={profile.id}
+          label={label}
+          following={following}
+          onChange={onFollowChange}
+        />
+      ) : null}
+    </View>
   );
 }
 
@@ -284,11 +369,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: Spacing.six,
   },
-  row: {
+  postRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
     paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.three,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingRight: Spacing.four,
+  },
+  person: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingLeft: Spacing.four,
     paddingVertical: Spacing.three,
   },
   rowBody: {

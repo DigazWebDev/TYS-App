@@ -2,6 +2,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { Spacing } from '@/constants/theme';
+import { groupStoriesByAuthor, openingStoryId } from '@/lib/stories';
 import type { ProfilePreview, StoryPreview } from '@/types/post';
 
 import { StoryBubble } from './StoryBubble';
@@ -12,6 +13,19 @@ type StoryRailProps = {
 };
 
 export function StoryRail({ stories, currentUser }: StoryRailProps) {
+  const groups = groupStoriesByAuthor(stories, currentUser.id);
+  const own = groups.find((group) => group.userId === currentUser.id);
+  const others = groups.filter((group) => group.userId !== currentUser.id);
+
+  function openOwn() {
+    if (!own || own.stories.length === 0) {
+      router.push('/create-story');
+      return;
+    }
+
+    router.push(`/story/${openingStoryId(own.stories)}`);
+  }
+
   return (
     <View>
       <ScrollView
@@ -21,15 +35,16 @@ export function StoryRail({ stories, currentUser }: StoryRailProps) {
       >
         <StoryBubble
           isOwn
+          hasStory={Boolean(own && own.stories.length > 0)}
           profile={currentUser}
-          onPress={() => router.push('/create-story')}
+          onPress={openOwn}
         />
-        {stories.map((story) => (
+        {others.map((group) => (
           <StoryBubble
-            key={story.id}
-            profile={story.author}
-            viewed={story.viewed}
-            onPress={() => router.push(`/story/${story.id}`)}
+            key={group.userId}
+            profile={group.author}
+            viewed={group.stories.every((story) => story.viewed)}
+            onPress={() => router.push(`/story/${openingStoryId(group.stories)}`)}
           />
         ))}
       </ScrollView>
