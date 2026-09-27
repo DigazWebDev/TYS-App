@@ -78,9 +78,13 @@ export function Header({
       ]}
     >
       {brand ? (
-        <View style={styles.brand} accessibilityRole="header">
-          <BrandWordmark size="compact" />
-        </View>
+        <>
+          <View style={styles.side}>{left}</View>
+          <View style={styles.flexSpacer} />
+          <View pointerEvents="none" style={styles.brandCenter} accessibilityRole="header">
+            <BrandWordmark size="compact" />
+          </View>
+        </>
       ) : (
         <>
           <View style={styles.side}>{leading}</View>
@@ -119,8 +123,12 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: Spacing.one,
   },
-  brand: {
+  flexSpacer: {
     flex: 1,
+  },
+  brandCenter: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
     justifyContent: 'center',
   },
   iconHit: {

@@ -18,7 +18,19 @@ export function openProfile(userId: string, currentUserId?: string) {
 }
 
 export function openCreatePost() {
-  router.push('/(tabs)/create');
+  router.navigate('/(tabs)/create?composer=text' as Href);
+}
+
+export function openNotifications() {
+  router.push('/notifications' as Href);
+}
+
+export function openStudio() {
+  router.push('/studio' as Href);
+}
+
+export function openStudioPreview() {
+  router.push('/studio/preview' as Href);
 }
 
 export function openMessages() {

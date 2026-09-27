@@ -1,14 +1,17 @@
+import { useState } from 'react';
 import { Alert, Pressable, Share, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { type Href, router } from 'expo-router';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 
+import { PostMediaCarousel } from '@/components/feed/PostMediaCarousel';
+import { PostMediaViewer } from '@/components/feed/PostMediaViewer';
 import { Avatar, Text } from '@/components/ui';
 import { Radius, Spacing } from '@/constants/theme';
 import { useThemeTokens } from '@/hooks/use-theme';
 import { publicHandle, publicLabel } from '@/lib/identity';
 import { formatRelativeTime } from '@/lib/time';
-import type { Post } from '@/types/post';
+import type { Post, PostMedia } from '@/types/post';
 
 type PostCardProps = {
   post: Post;
@@ -36,7 +39,34 @@ export function PostCard({
     : null;
   const publishedAt = formatRelativeTime(post.createdAt);
   const meta = handle ? `${handle} · ${publishedAt}` : publishedAt;
+  const media = [...(post.media ?? [])].sort(
+    (left, right) => left.position - right.position,
+  );
+  const singleImage =
+    media.length === 1 && media[0]?.mediaType === 'image' && media[0].url
+      ? media[0].url
+      : media.length === 0
+        ? post.imageUrl
+        : null;
+  const showCarousel =
+    media.length > 1 || (media.length === 1 && singleImage === null);
   const isOwn = Boolean(currentUserId && currentUserId === post.author.id);
+  const viewerItems: PostMedia[] =
+    media.length > 0
+      ? media
+      : post.imageUrl
+        ? [
+            {
+              id: `${post.id}-image`,
+              postId: post.id,
+              storagePath: post.imageUrl,
+              mediaType: 'image',
+              position: 0,
+              url: post.imageUrl,
+            },
+          ]
+        : [];
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   async function handleShare() {
     await Share.share({
@@ -82,6 +112,11 @@ export function PostCard({
           <Text variant="caption" tone="secondary">
             {meta}
           </Text>
+          {post.isDemo ? (
+            <Text variant="overline" tone="accent">
+              DEMONSTRAÇÃO
+            </Text>
+          ) : null}
         </Pressable>
         {isOwn && onDelete ? (
           <Pressable
@@ -111,13 +146,26 @@ export function PostCard({
         </Text>
       ) : null}
 
-      {post.imageUrl ? (
-        <Image
-          source={{ uri: post.imageUrl }}
-          style={[styles.image, { backgroundColor: tokens.background.elevated }]}
-          contentFit="cover"
-          accessibilityLabel={`Imagem de ${label}`}
+      {showCarousel ? (
+        <PostMediaCarousel
+          items={media}
+          onOpen={(index) => setViewerIndex(index)}
         />
+      ) : null}
+
+      {singleImage ? (
+        <Pressable
+          onPress={() => setViewerIndex(0)}
+          accessibilityRole="button"
+          accessibilityLabel={`Abrir fotografia de ${label}`}
+        >
+          <Image
+            source={{ uri: singleImage }}
+            style={[styles.image, { backgroundColor: tokens.background.elevated }]}
+            contentFit="cover"
+            accessibilityLabel={`Imagem de ${label}`}
+          />
+        </Pressable>
       ) : null}
 
       <View style={styles.actions}>
@@ -149,7 +197,16 @@ export function PostCard({
         </Pressable>
 
         <Pressable
-          onPress={() => router.push(`/post/${post.id}` as Href)}
+          onPress={() => {
+            if (post.isDemo) {
+              Alert.alert(
+                'Demonstração',
+                'Esta publicação existe só neste ecrã.',
+              );
+              return;
+            }
+            router.push(`/post/${post.id}` as Href);
+          }}
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel={
@@ -186,6 +243,13 @@ export function PostCard({
           />
         </Pressable>
       </View>
+      {viewerIndex !== null && viewerItems.length > 0 ? (
+        <PostMediaViewer
+          items={viewerItems}
+          initialIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+        />
+      ) : null}
     </View>
   );
 }

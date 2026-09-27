@@ -81,6 +81,26 @@ export default function RootLayout() {
             animation: 'fade',
           }}
         />
+        <Stack.Screen
+          name="notifications"
+          options={{
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="studio/index"
+          options={{
+            presentation: 'fullScreenModal',
+            animation: 'fade',
+          }}
+        />
+        <Stack.Screen
+          name="studio/preview"
+          options={{
+            presentation: 'card',
+            animation: 'slide_from_bottom',
+          }}
+        />
       </Stack.Protected>
     </Stack>
   );

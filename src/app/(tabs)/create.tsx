@@ -4,16 +4,19 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PostMediaComposer } from '@/components/create/PostMediaComposer';
 import { Avatar, Button, Header, Input, Screen, Text } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useOwnProfile } from '@/hooks/use-own-profile';
 import { publicLabel } from '@/lib/identity';
+import type { PostMediaDraft } from '@/lib/post-media-draft';
 import {
   POST_BODY_MAX_LENGTH,
   createPost,
@@ -23,13 +26,18 @@ import {
 export default function CreateScreen() {
   const insets = useSafeAreaInsets();
   const profile = useOwnProfile();
+  const { composer } = useLocalSearchParams<{ composer?: string }>();
+  const textOnly = composer !== 'media';
   const [body, setBody] = useState('');
+  const [media, setMedia] = useState<PostMediaDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const submitting = useRef(false);
 
   const trimmedLength = body.trim().length;
-  const canSubmit = trimmedLength > 0 && body.length <= POST_BODY_MAX_LENGTH;
+  const canSubmit =
+    (textOnly ? trimmedLength > 0 : trimmedLength > 0 || media.length > 0) &&
+    body.length <= POST_BODY_MAX_LENGTH;
   const nearLimit = body.length >= POST_BODY_MAX_LENGTH - 20;
   const authorName = publicLabel({
     displayName: profile?.display_name,
@@ -43,7 +51,19 @@ export default function CreateScreen() {
     }
   }
 
+  function handleMediaChange(next: PostMediaDraft[], notice: string | null) {
+    setMedia(next);
+    setError(notice);
+  }
+
   async function handlePublish() {
+    if (!textOnly && media.length > 0) {
+      setError(
+        'As fotos e os vídeos ainda não são enviados. O texto e a seleção mantêm-se neste ecrã.',
+      );
+      return;
+    }
+
     const validationError = validatePostBody(body);
 
     if (validationError) {
@@ -69,6 +89,7 @@ export default function CreateScreen() {
       }
 
       setBody('');
+      setMedia([]);
       setError(null);
       Alert.alert('Publicado', 'A tua história já está no feed.', [
         {
@@ -86,14 +107,19 @@ export default function CreateScreen() {
 
   return (
     <Screen edges={['top', 'left', 'right']}>
-      <Header title="Criar" showBorder={false} />
+      <Header
+        title="Criar"
+        showBorder={false}
+        onBack={() => router.navigate('/(tabs)' as Href)}
+      />
 
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View
-          style={[
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[
             styles.body,
             { paddingBottom: Math.max(insets.bottom, Spacing.four) },
           ]}
@@ -124,6 +150,14 @@ export default function CreateScreen() {
             style={styles.composerField}
           />
 
+          {textOnly ? null : (
+            <PostMediaComposer
+              items={media}
+              disabled={loading}
+              onChange={handleMediaChange}
+            />
+          )}
+
           <View style={styles.metaRow}>
             {error ? (
               <Text variant="caption" style={styles.error}>
@@ -131,9 +165,15 @@ export default function CreateScreen() {
               </Text>
             ) : (
               <Text variant="caption" tone="secondary" style={styles.hint}>
-                {trimmedLength === 0
-                  ? 'Escreve a tua história.'
-                  : 'A publicação aparece no feed de todos.'}
+                {textOnly
+                  ? trimmedLength === 0
+                    ? 'Escreve a tua história.'
+                    : 'A publicação aparece no feed de todos.'
+                  : media.length > 0
+                    ? 'A seleção fica no telemóvel até o envio de media existir.'
+                    : trimmedLength === 0
+                      ? 'Escreve a tua história ou junta fotos e vídeos.'
+                      : 'A publicação aparece no feed de todos.'}
               </Text>
             )}
             <Text
@@ -156,7 +196,7 @@ export default function CreateScreen() {
           >
             Publicar
           </Button>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </Screen>
   );
@@ -167,7 +207,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   body: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: Spacing.five,
     paddingTop: Spacing.two,
     paddingBottom: 0,
@@ -180,7 +220,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.two,
   },
   composer: {
-    flex: 1,
+    minHeight: 160,
   },
   composerField: {
     minHeight: 160,

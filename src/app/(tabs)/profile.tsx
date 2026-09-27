@@ -19,7 +19,7 @@ import { useThemeTokens } from '@/hooks/use-theme';
 import { friendlyAuthError } from '@/lib/auth-errors';
 import { fetchFollowCounts } from '@/lib/follows';
 import { publicLabel } from '@/lib/identity';
-import { openEditProfile, openFollowers, openFollowing } from '@/lib/navigation';
+import { openCreatePost, openEditProfile, openFollowers, openFollowing } from '@/lib/navigation';
 import { likePost, unlikePost } from '@/lib/post-likes';
 import { supabase } from '@/lib/supabase';
 import type { Post } from '@/types/post';
@@ -202,7 +202,7 @@ export default function OwnProfileScreen() {
               title="Ainda não publicaste"
               description="A tua primeira história aparece aqui e no feed."
               action={
-                <Button onPress={() => router.push('/(tabs)/create')}>
+                <Button onPress={openCreatePost}>
                   Criar publicação
                 </Button>
               }
