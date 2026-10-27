@@ -1,34 +1,58 @@
-/**
- * Overlay placed on a Studio photograph.
- * Position and size are fractions of the photo, from 0 to 1.
- * Rotation is in degrees. Tools that fill these fields come later.
- */
-export type StudioOverlay = {
+export type StudioTextAlign = 'left' | 'center' | 'right';
+
+/** Visual style kept separate from the photograph so it can be edited later. */
+export type StudioElementStyle = {
+  color: string;
+  fontSize: number;
+  align: StudioTextAlign;
+  background: boolean;
+};
+
+/** Shared placement. `x` and `y` are the center, as fractions of the visible photo. */
+type StudioPlacement = {
   id: string;
-  type: StudioOverlayType;
-  position: {
-    x: number;
-    y: number;
-  };
-  size: {
-    width: number;
-    height: number;
-  };
+  x: number;
+  y: number;
+  scale: number;
   rotation: number;
-} & StudioOverlayProps;
+  zIndex: number;
+};
 
-export type StudioOverlayType =
-  | 'text'
-  | 'link'
-  | 'time-weather'
-  | 'sticker'
-  | 'emoji'
-  | 'music';
+export type StudioTextElement = StudioPlacement & {
+  type: 'text' | 'emoji';
+  content: string;
+  style: StudioElementStyle;
+};
 
-type StudioOverlayProps =
-  | { type: 'text'; text: string; color: string }
-  | { type: 'link'; url: string; label: string }
-  | { type: 'time-weather'; locationLabel: string | null }
-  | { type: 'sticker'; stickerId: string }
-  | { type: 'emoji'; emoji: string }
-  | { type: 'music'; trackTitle: string; artist: string | null };
+export type StudioLinkElement = StudioPlacement & {
+  type: 'link';
+  url: string;
+  label: string;
+};
+
+/** Local audio kept only in the in-memory draft. Nothing is uploaded. */
+export type StudioMusicElement = StudioPlacement & {
+  type: 'music';
+  uri: string;
+  title: string;
+  artist: string;
+  fileName: string;
+  mimeType: string | null;
+};
+
+export type StudioStickerElement = StudioPlacement & {
+  type: 'sticker';
+  stickerId: string;
+};
+
+export type StudioElement =
+  | StudioTextElement
+  | StudioLinkElement
+  | StudioMusicElement
+  | StudioStickerElement;
+
+export type StudioFutureTool = 'link' | 'time-weather' | 'sticker' | 'music';
+
+export function isStudioText(element: StudioElement): element is StudioTextElement {
+  return element.type === 'text' || element.type === 'emoji';
+}

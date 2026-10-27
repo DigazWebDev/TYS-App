@@ -1,8 +1,8 @@
-import type { StudioOverlay } from '@/types/studio';
+import type { StudioElement } from '@/types/studio';
 
 export type StudioDraft = {
   uri: string;
-  overlays: StudioOverlay[];
+  elements: StudioElement[];
 };
 
 let current: StudioDraft | null = null;
@@ -11,12 +11,22 @@ let current: StudioDraft | null = null;
 export function setStudioPhoto(uri: string) {
   current = {
     uri,
-    overlays: [],
+    elements: [],
   };
 }
 
 export function getStudioDraft(): StudioDraft | null {
   return current;
+}
+
+export function replaceStudioElements(elements: StudioElement[]) {
+  if (!current) {
+    return;
+  }
+  current = {
+    ...current,
+    elements,
+  };
 }
 
 export function clearStudioDraft() {
